@@ -1,15 +1,17 @@
 import { app } from 'electron'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { ElectronHost } from './electron-host.js'
 
 const host = new ElectronHost()
+let isQuitting = false
 
 app.whenReady().then(async () => {
   try {
     await host.initialize()
-    const preloadPath = join(fileURLToPath(import.meta.url), '../../preload/index.js')
-    const devUrl = process.env.VITE_DEV_SERVER_URL
+    const mainDir = dirname(fileURLToPath(import.meta.url))
+    const preloadPath = join(mainDir, '../preload/index.mjs')
+    const devUrl = process.env.ELECTRON_RENDERER_URL
     host.createWindow(preloadPath, devUrl)
   } catch (err) {
     console.error('Failed to initialize Electron application:', err)
@@ -23,6 +25,15 @@ app.on('window-all-closed', () => {
   }
 })
 
-app.on('before-quit', () => {
-  host.shutdown()
+app.on('before-quit', (event) => {
+  if (isQuitting) {
+    return
+  }
+
+  event.preventDefault()
+  isQuitting = true
+
+  void host.shutdown().finally(() => {
+    app.quit()
+  })
 })

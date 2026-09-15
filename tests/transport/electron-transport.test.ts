@@ -65,6 +65,25 @@ describe('ElectronTransport', () => {
     expect(kernel.start).not.toHaveBeenCalled()
   })
 
+  it('should reject a lookalike localhost origin', async () => {
+    const kernel = createMockKernel()
+    const transport = new ElectronTransport({
+      kernel,
+      allowedOrigins: ['http://localhost:5173']
+    })
+
+    const event = createMockEvent('http://localhost:51730/index.html')
+    const result = await transport.handleStartChat(event, {
+      requestId: 'req-lookalike',
+      conversationId: 'conv-1',
+      assistantMessageId: 'asst-1',
+      messages: [{ role: 'user', content: 'Hello' }]
+    })
+
+    expect(result.accepted).toBe(false)
+    expect(kernel.start).not.toHaveBeenCalled()
+  })
+
   it('should reject malformed payload before calling kernel', async () => {
     const kernel = createMockKernel()
     const transport = new ElectronTransport({

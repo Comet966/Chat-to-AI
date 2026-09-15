@@ -21,7 +21,7 @@ export class ElectronTransport {
 
   constructor(options: ElectronTransportOptions) {
     this.kernel = options.kernel
-    this.allowedOrigins = options.allowedOrigins ?? ['http://localhost:', 'file://']
+    this.allowedOrigins = options.allowedOrigins ?? ['http://localhost:5173']
   }
 
   public register(): () => void {
@@ -110,7 +110,18 @@ export class ElectronTransport {
       return false
     }
 
-    return this.allowedOrigins.some((allowed) => senderUrl.startsWith(allowed))
+    try {
+      const sender = new URL(senderUrl)
+      return this.allowedOrigins.some((allowed) => {
+        try {
+          return sender.origin === new URL(allowed).origin
+        } catch {
+          return false
+        }
+      })
+    } catch {
+      return false
+    }
   }
 }
 

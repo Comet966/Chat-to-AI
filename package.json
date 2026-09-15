@@ -10,6 +10,7 @@
     "build:core": "pnpm --filter chat-contracts --filter chat-core run build",
     "test:transport": "vitest run tests/adapters tests/transport",
     "build:desktop": "pnpm --filter chat-desktop run build",
+    "build:debug-ui": "pnpm --filter chat-debug-renderer run build",
     "typecheck": "pnpm -r run typecheck",
     "test": "vitest run",
     "build": "pnpm -r run build"

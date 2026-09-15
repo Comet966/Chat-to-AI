@@ -19,8 +19,11 @@ export class ElectronHost {
     })
 
     this.kernel = new ChatKernel(modelAdapter)
+    const rendererUrl = process.env.ELECTRON_RENDERER_URL
+    const parsedRendererUrl = rendererUrl ? new URL(rendererUrl) : null
     this.unregisterTransport = registerElectronChatTransport({
-      kernel: this.kernel
+      kernel: this.kernel,
+      allowedOrigins: parsedRendererUrl && parsedRendererUrl.protocol !== 'file:' ? [parsedRendererUrl.origin] : undefined
     })
 
     this.setupSecurityHeaders()
@@ -47,9 +50,11 @@ export class ElectronHost {
       return { action: 'deny' }
     })
 
-    // Disallow navigation to external URLs
+    const allowedRendererUrl = rendererUrl ? new URL(rendererUrl) : null
+
+    // Disallow navigation outside the configured renderer page/origin.
     window.webContents.on('will-navigate', (event, navigationUrl) => {
-      if (!navigationUrl.startsWith('http://localhost:') && !navigationUrl.startsWith('file://')) {
+      if (!allowedRendererUrl || !this.isAllowedNavigation(navigationUrl, allowedRendererUrl)) {
         event.preventDefault()
       }
     })
@@ -69,7 +74,12 @@ export class ElectronHost {
     return window
   }
 
-  public shutdown(): void {
+  public async shutdown(): Promise<void> {
+    const activeRequestId = this.kernel?.getState().activeRequestId
+    if (activeRequestId) {
+      await this.kernel?.cancel({ requestId: activeRequestId })
+    }
+
     if (this.unregisterTransport) {
       this.unregisterTransport()
       this.unregisterTransport = null
@@ -92,5 +102,17 @@ export class ElectronHost {
         }
       })
     })
+  }
+
+  private isAllowedNavigation(navigationUrl: string, allowedRendererUrl: URL): boolean {
+    try {
+      const targetUrl = new URL(navigationUrl)
+      if (allowedRendererUrl.protocol === 'file:') {
+        return targetUrl.protocol === 'file:' && targetUrl.pathname === allowedRendererUrl.pathname
+      }
+      return targetUrl.origin === allowedRendererUrl.origin
+    } catch {
+      return false
+    }
   }
 }
