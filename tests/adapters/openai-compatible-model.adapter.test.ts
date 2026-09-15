@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { OpenAICompatibleModelAdapter } from '../../apps/desktop/src/main/openai-compatible-model.adapter.js'
+import { OpenAICompatibleModelAdapter } from 'chat-model-adapters'
 
 describe('OpenAICompatibleModelAdapter', () => {
   it('should parse streaming SSE chunks and finish properly', async () => {
@@ -58,6 +58,98 @@ describe('OpenAICompatibleModelAdapter', () => {
       { type: 'finish', finishReason: 'stop' }
     ])
 
+    fetchSpy.mockRestore()
+  })
+
+  it('should handle split chunks across lines, empty deltas, and malformed JSON lines', async () => {
+    const part1 = 'data: {"choices":[{"delta":{"content":"Hello '
+    const part2 = 'world"}}]}\n\n'
+    const part3 = 'data: malformed-json\n\n'
+    const part4 = 'data: {"choices":[{"delta":{}}]}\n\n'
+    const part5 = 'data: [DONE]' // No trailing newline
+
+    const mockResponse = new Response(
+      new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode(part1))
+          controller.enqueue(new TextEncoder().encode(part2))
+          controller.enqueue(new TextEncoder().encode(part3))
+          controller.enqueue(new TextEncoder().encode(part4))
+          controller.enqueue(new TextEncoder().encode(part5))
+          controller.close()
+        }
+      }),
+      {
+        status: 200,
+        headers: { 'Content-Type': 'text/event-stream' }
+      }
+    )
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(mockResponse)
+
+    const adapter = new OpenAICompatibleModelAdapter({
+      baseUrl: 'https://api.example.com/v1',
+      apiKey: 'test-key',
+      modelId: 'test-model'
+    })
+
+    const chunks = []
+    const abortController = new AbortController()
+
+    for await (const chunk of adapter.streamChat(
+      { messages: [{ role: 'user', content: 'Hi' }] },
+      abortController.signal
+    )) {
+      chunks.push(chunk)
+    }
+
+    expect(chunks).toEqual([
+      { type: 'text-delta', text: 'Hello world' },
+      { type: 'finish', finishReason: 'stop' }
+    ])
+
+    fetchSpy.mockRestore()
+  })
+
+  it('should abort cleanly when AbortSignal is triggered', async () => {
+    let controllerRef: ReadableStreamDefaultController | null = null
+    const mockResponse = new Response(
+      new ReadableStream({
+        start(controller) {
+          controllerRef = controller
+          controller.enqueue(new TextEncoder().encode('data: {"choices":[{"delta":{"content":"First"}}]}\n\n'))
+        }
+      }),
+      {
+        status: 200,
+        headers: { 'Content-Type': 'text/event-stream' }
+      }
+    )
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(mockResponse)
+
+    const adapter = new OpenAICompatibleModelAdapter({
+      baseUrl: 'https://api.example.com/v1',
+      apiKey: 'test-key',
+      modelId: 'test-model'
+    })
+
+    const chunks = []
+    const abortController = new AbortController()
+
+    for await (const chunk of adapter.streamChat(
+      { messages: [{ role: 'user', content: 'Hi' }] },
+      abortController.signal
+    )) {
+      chunks.push(chunk)
+      abortController.abort() // abort after first chunk
+    }
+
+    expect(chunks).toEqual([
+      { type: 'text-delta', text: 'First' }
+    ])
+
+    controllerRef?.close()
     fetchSpy.mockRestore()
   })
 

@@ -60,6 +60,9 @@ importers:
       chat-core:
         specifier: workspace:*
         version: link:../../packages/chat-core
+      chat-model-adapters:
+        specifier: workspace:*
+        version: link:../../packages/chat-model-adapters
       dotenv:
         specifier: 16.4.7
         version: 16.4.7
@@ -83,6 +86,25 @@ importers:
         specifier: 6.2.1
         version: 6.2.1(@types/node@22.13.10)
 
+  apps/test-cli:
+    dependencies:
+      chat-contracts:
+        specifier: workspace:*
+        version: link:../../packages/chat-contracts
+      chat-core:
+        specifier: workspace:*
+        version: link:../../packages/chat-core
+      chat-model-adapters:
+        specifier: workspace:*
+        version: link:../../packages/chat-model-adapters
+    devDependencies:
+      '@types/node':
+        specifier: 22.13.10
+        version: 22.13.10
+      typescript:
+        specifier: 5.8.2
+        version: 5.8.2
+
   packages/chat-contracts:
     dependencies:
       zod:
@@ -98,6 +120,19 @@ importers:
       chat-contracts:
         specifier: workspace:*
         version: link:../chat-contracts
+    devDependencies:
+      typescript:
+        specifier: 5.8.2
+        version: 5.8.2
+
+  packages/chat-model-adapters:
+    dependencies:
+      chat-contracts:
+        specifier: workspace:*
+        version: link:../chat-contracts
+      chat-core:
+        specifier: workspace:*
+        version: link:../chat-core
     devDependencies:
       typescript:
         specifier: 5.8.2

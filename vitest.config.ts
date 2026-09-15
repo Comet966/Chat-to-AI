@@ -10,7 +10,8 @@ export default defineConfig({
   resolve: {
     alias: {
       'chat-contracts': resolve(__dirname, 'packages/chat-contracts/src/index.ts'),
-      'chat-core': resolve(__dirname, 'packages/chat-core/src/index.ts')
+      'chat-core': resolve(__dirname, 'packages/chat-core/src/index.ts'),
+      'chat-model-adapters': resolve(__dirname, 'packages/chat-model-adapters/src/index.ts')
     }
   }
 })

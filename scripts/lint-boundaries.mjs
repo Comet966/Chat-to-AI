@@ -62,6 +62,21 @@ function checkContractsPackageJson() {
   }
 }
 
+function checkModelAdaptersPackageJson() {
+  const pkgPath = path.join(rootDir, 'packages', 'chat-model-adapters', 'package.json')
+  if (!fs.existsSync(pkgPath)) return
+
+  const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'))
+  const deps = Object.keys(pkg.dependencies || {})
+  const devDeps = Object.keys(pkg.devDependencies || {})
+
+  for (const dep of [...deps, ...devDeps]) {
+    if (dep.includes('electron') || dep.includes('react') || dep.includes('zustand')) {
+      errors.push(`packages/chat-model-adapters has forbidden dependency: "${dep}".`)
+    }
+  }
+}
+
 function scanDir(dirPath, handler) {
   if (!fs.existsSync(dirPath)) return
   const entries = fs.readdirSync(dirPath, { withFileTypes: true })
@@ -118,10 +133,45 @@ function checkDebugRendererIfPresent() {
   })
 }
 
+function checkTestCliIfPresent() {
+  const cliPkgPath = path.join(rootDir, 'apps', 'test-cli', 'package.json')
+  if (!fs.existsSync(cliPkgPath)) return
+
+  const pkg = JSON.parse(fs.readFileSync(cliPkgPath, 'utf8'))
+  const deps = Object.keys(pkg.dependencies || {})
+  const devDeps = Object.keys(pkg.devDependencies || {})
+
+  for (const dep of [...deps, ...devDeps]) {
+    if (dep.includes('electron') || dep.includes('react') || dep.includes('zustand') || dep.includes('desktop')) {
+      errors.push(`apps/test-cli has forbidden dependency: "${dep}". Electron/React/Desktop are prohibited.`)
+    }
+  }
+
+  const cliSrc = path.join(rootDir, 'apps', 'test-cli', 'src')
+  scanDir(cliSrc, (filePath) => {
+    const content = fs.readFileSync(filePath, 'utf8')
+    const relPath = path.relative(rootDir, filePath)
+
+    const forbiddenImports = ['electron', 'react', 'zustand']
+    for (const forbidden of forbiddenImports) {
+      const regex = new RegExp(`from\\s+['"]${forbidden}(/.*)?['"]`, 'g')
+      if (regex.test(content)) {
+        errors.push(`${relPath}: test-cli must not import "${forbidden}"`)
+      }
+    }
+
+    if (content.includes('ipcRenderer') || content.includes('ipcMain') || content.includes('BrowserWindow')) {
+      errors.push(`${relPath}: test-cli must not reference Electron symbols`)
+    }
+  })
+}
+
 checkCorePackageJson()
 checkContractsPackageJson()
+checkModelAdaptersPackageJson()
 checkCoreSourceFiles()
 checkDebugRendererIfPresent()
+checkTestCliIfPresent()
 
 if (errors.length > 0) {
   console.error('Architecture boundary violations found:')

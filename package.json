@@ -11,6 +11,10 @@
     "test:transport": "vitest run tests/adapters tests/transport",
     "build:desktop": "pnpm --filter chat-desktop run build",
     "build:debug-ui": "pnpm --filter chat-debug-renderer run build",
+    "cli:test": "pnpm --filter chat-test-cli run start --",
+    "typecheck:test-cli": "pnpm --filter chat-test-cli run typecheck",
+    "test:test-cli": "vitest run tests/cli",
+    "build:test-cli": "pnpm --filter chat-model-adapters --filter chat-test-cli run build",
     "typecheck": "pnpm -r run typecheck",
     "test": "vitest run",
     "build": "pnpm -r run build"

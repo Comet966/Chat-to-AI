@@ -1,0 +1,122 @@
+export interface CliParsedArgs {
+  baseUrl?: string
+  apiKey?: string
+  modelId?: string
+  prompt?: string
+  timeoutMs?: number
+  format?: 'text' | 'jsonl'
+  noColor?: boolean
+  help?: boolean
+  version?: boolean
+}
+
+export type ParseArgsResult =
+  | { success: true; args: CliParsedArgs }
+  | { success: false; error: string }
+
+export function parseCliArgs(rawArgs: string[]): ParseArgsResult {
+  const args: CliParsedArgs = {}
+
+  for (let i = 0; i < rawArgs.length; i++) {
+    const arg = rawArgs[i]
+
+    if (arg === '--help' || arg === '-h') {
+      args.help = true
+      return { success: true, args }
+    }
+
+    if (arg === '--version' || arg === '-v') {
+      args.version = true
+      return { success: true, args }
+    }
+
+    if (arg === '--no-color') {
+      args.noColor = true
+      continue
+    }
+
+    if (arg === '--base-url') {
+      const val = rawArgs[++i]
+      if (val === undefined || val.startsWith('-')) {
+        return { success: false, error: 'Option --base-url requires a value' }
+      }
+      args.baseUrl = val
+      continue
+    }
+
+    if (arg === '--api-key') {
+      const val = rawArgs[++i]
+      if (val === undefined || val.startsWith('-')) {
+        return { success: false, error: 'Option --api-key requires a value' }
+      }
+      args.apiKey = val
+      continue
+    }
+
+    if (arg === '--model-id') {
+      const val = rawArgs[++i]
+      if (val === undefined || val.startsWith('-')) {
+        return { success: false, error: 'Option --model-id requires a value' }
+      }
+      args.modelId = val
+      continue
+    }
+
+    if (arg === '--prompt') {
+      const val = rawArgs[++i]
+      if (val === undefined || val.startsWith('-')) {
+        return { success: false, error: 'Option --prompt requires a value' }
+      }
+      args.prompt = val
+      continue
+    }
+
+    if (arg === '--timeout-ms') {
+      const val = rawArgs[++i]
+      if (val === undefined || val.startsWith('-')) {
+        return { success: false, error: 'Option --timeout-ms requires a value' }
+      }
+      const parsedNum = Number(val)
+      if (!Number.isInteger(parsedNum) || parsedNum <= 0) {
+        return { success: false, error: 'Option --timeout-ms must be a positive integer' }
+      }
+      args.timeoutMs = parsedNum
+      continue
+    }
+
+    if (arg === '--format') {
+      const val = rawArgs[++i]
+      if (val !== 'text' && val !== 'jsonl') {
+        return { success: false, error: "Option --format must be either 'text' or 'jsonl'" }
+      }
+      args.format = val
+      continue
+    }
+
+    return { success: false, error: `Unknown option: ${arg}` }
+  }
+
+  return { success: true, args }
+}
+
+export function getHelpText(): string {
+  return `Usage: chat-test-cli [options]
+
+Headless CLI tool to test and verify the ChatKernel stream directly.
+
+Options:
+  --base-url <url>     OpenAI-compatible API base URL (env: AI_API_BASE_URL)
+  --api-key <key>      API key for authentication (env: AI_API_KEY)
+  --model-id <id>      Model identifier (env: AI_MODEL_ID)
+  --prompt <text>      Prompt content (if omitted, reads once from stdin)
+  --timeout-ms <n>     Request timeout in milliseconds (default: 120000, env: AI_CLI_TIMEOUT_MS)
+  --format <format>    Output format: 'text' or 'jsonl' (default: 'text', env: AI_CLI_FORMAT)
+  --no-color           Disable terminal colors (env: NO_COLOR)
+  --help, -h           Show this help message and exit
+  --version, -v        Show version and exit
+
+Security Notice:
+  Passing --api-key via CLI arguments may expose it in system process listings.
+  It is strongly recommended to use the AI_API_KEY environment variable instead.
+`
+}
