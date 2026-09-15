@@ -1,0 +1,23 @@
+{
+  "name": "chat-to-ai",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck:core": "pnpm --filter chat-contracts --filter chat-core run typecheck",
+    "lint:boundaries": "node scripts/lint-boundaries.mjs",
+    "test:core": "vitest run tests/contracts tests/core",
+    "build:core": "pnpm --filter chat-contracts --filter chat-core run build",
+    "test:transport": "vitest run tests/adapters tests/transport",
+    "build:desktop": "pnpm --filter chat-desktop run build",
+    "typecheck": "pnpm -r run typecheck",
+    "test": "vitest run",
+    "build": "pnpm -r run build"
+  },
+  "devDependencies": {
+    "@types/node": "22.13.10",
+    "typescript": "5.8.2",
+    "vite": "6.2.1",
+    "vitest": "3.0.8"
+  }
+}
