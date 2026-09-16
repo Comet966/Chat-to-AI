@@ -1,5 +1,7 @@
 import type { ChatModelPort } from 'chat-core'
 import type { ChatRole } from 'chat-contracts'
+import { parseSseStream } from './sse.js'
+import { redactSecret } from './provider-config.schema.js'
 
 export interface OpenAICompatibleModelAdapterOptions {
   baseUrl: string
@@ -27,24 +29,37 @@ export class OpenAICompatibleModelAdapter implements ChatModelPort {
   > {
     const url = `${this.baseUrl}/chat/completions`
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.apiKey}`
-      },
-      body: JSON.stringify({
-        model: this.modelId,
-        messages: input.messages,
-        stream: true
-      }),
-      signal
-    })
+    let response: Response
+    try {
+      response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.apiKey}`
+        },
+        body: JSON.stringify({
+          model: this.modelId,
+          messages: input.messages,
+          stream: true
+        }),
+        signal
+      })
+    } catch (fetchError: unknown) {
+      if (fetchError && typeof fetchError === 'object') {
+        const anyErr = fetchError as Record<string, unknown>
+        const causeCode = (anyErr.cause as { code?: string } | undefined)?.code
+        if (causeCode && !anyErr.code) {
+          anyErr.code = causeCode
+        }
+      }
+      throw fetchError
+    }
 
     if (!response.ok) {
       const status = response.status
       const errorText = await response.text().catch(() => '')
-      const error = new Error(`Provider HTTP ${status}: ${errorText}`)
+      const redacted = redactSecret(errorText.slice(0, 500), this.apiKey)
+      const error = new Error(`Provider HTTP ${status}: ${redacted}`)
       ;(error as unknown as { status: number }).status = status
       throw error
     }
@@ -53,110 +68,58 @@ export class OpenAICompatibleModelAdapter implements ChatModelPort {
       throw new Error('Response body is empty')
     }
 
-    const reader = response.body.getReader()
-    const decoder = new TextDecoder('utf-8')
-    let buffer = ''
+    let hasFinished = false
 
-    try {
-      while (!signal.aborted) {
-        const { done, value } = await reader.read()
-        if (done) {
-          break
-        }
-
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop() ?? ''
-
-        for (const line of lines) {
-          const trimmed = line.trim()
-          if (!trimmed || trimmed.startsWith(':')) {
-            continue
-          }
-
-          if (trimmed === 'data: [DONE]') {
-            yield { type: 'finish', finishReason: 'stop' }
-            return
-          }
-
-          if (trimmed.startsWith('data: ')) {
-            const dataStr = trimmed.slice(6).trim()
-            if (!dataStr) continue
-
-            try {
-              const parsed = JSON.parse(dataStr) as {
-                choices?: Array<{
-                  delta?: { content?: string }
-                  finish_reason?: string | null
-                }>
-              }
-
-              const choice = parsed.choices?.[0]
-              if (!choice) continue
-
-              if (choice.delta?.content) {
-                yield { type: 'text-delta', text: choice.delta.content }
-              }
-
-              if (choice.finish_reason) {
-                const reason =
-                  choice.finish_reason === 'stop'
-                    ? 'stop'
-                    : choice.finish_reason === 'length'
-                      ? 'length'
-                      : 'unknown'
-                yield { type: 'finish', finishReason: reason }
-                return
-              }
-            } catch {
-              // Ignore partial or unparseable SSE line
-            }
-          }
-        }
+    for await (const event of parseSseStream(response.body, signal)) {
+      if (signal.aborted) {
+        return
       }
 
-      // Handle any remaining content left in buffer when stream ends
-      if (buffer.trim() && !signal.aborted) {
-        const trimmed = buffer.trim()
-        if (trimmed === 'data: [DONE]') {
-          yield { type: 'finish', finishReason: 'stop' }
+      const trimmedData = event.data.trim()
+      if (!trimmedData) {
+        continue
+      }
+
+      if (trimmedData === '[DONE]') {
+        hasFinished = true
+        yield { type: 'finish', finishReason: 'stop' }
+        return
+      }
+
+      try {
+        const parsed = JSON.parse(trimmedData) as {
+          choices?: Array<{
+            delta?: { content?: string }
+            finish_reason?: string | null
+          }>
+        }
+
+        const choice = parsed.choices?.[0]
+        if (!choice) {
+          continue
+        }
+
+        if (choice.delta?.content) {
+          yield { type: 'text-delta', text: choice.delta.content }
+        }
+
+        if (choice.finish_reason) {
+          const reason =
+            choice.finish_reason === 'stop'
+              ? 'stop'
+              : choice.finish_reason === 'length'
+                ? 'length'
+                : 'unknown'
+          hasFinished = true
+          yield { type: 'finish', finishReason: reason }
           return
         }
-        if (trimmed.startsWith('data: ')) {
-          const dataStr = trimmed.slice(6).trim()
-          if (dataStr) {
-            try {
-              const parsed = JSON.parse(dataStr) as {
-                choices?: Array<{
-                  delta?: { content?: string }
-                  finish_reason?: string | null
-                }>
-              }
-              const choice = parsed.choices?.[0]
-              if (choice?.delta?.content) {
-                yield { type: 'text-delta', text: choice.delta.content }
-              }
-              if (choice?.finish_reason) {
-                const reason =
-                  choice.finish_reason === 'stop'
-                    ? 'stop'
-                    : choice.finish_reason === 'length'
-                      ? 'length'
-                      : 'unknown'
-                yield { type: 'finish', finishReason: reason }
-                return
-              }
-            } catch {
-              // Ignore unparseable
-            }
-          }
-        }
+      } catch {
+        // Ignore unparseable or partial SSE JSON chunk
       }
-    } finally {
-      reader.releaseLock()
     }
 
-    if (!signal.aborted) {
+    if (!signal.aborted && !hasFinished) {
       yield { type: 'finish', finishReason: 'stop' }
     }
   }

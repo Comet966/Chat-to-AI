@@ -1,6 +1,6 @@
 # test-cli 测试流程与命令
 
-> 分支：`test-cli`  
+> 分支：`dev`（已合并 `test-cli`）
 > 目标：验证单模型、单会话、流式输出链路，不依赖 Electron 或 React。
 
 ## 1. 前置条件
@@ -33,21 +33,26 @@ pnpm cli:test --version
 
 支持命令行参数和环境变量。命令行参数优先级高于环境变量。
 
-| 配置 | 命令行参数 | 环境变量 | 必需 |
-|---|---|---|---:|
-| API Base URL | `--base-url` | `AI_API_BASE_URL` | 是 |
-| API Key | `--api-key` | `AI_API_KEY` | 是 |
-| Model ID | `--model-id` | `AI_MODEL_ID` | 是 |
-| Prompt | `--prompt` | —，也可从 stdin 读取 | 是 |
-| 超时毫秒数 | `--timeout-ms` | `AI_CLI_TIMEOUT_MS` | 否 |
-| 输出格式 | `--format text\|jsonl` | `AI_CLI_FORMAT` | 否 |
-| 禁用颜色 | `--no-color` | `NO_COLOR` | 否 |
+| 配置 | 命令行参数 | 环境变量 | 必需 | 默认值 / 说明 |
+|---|---|---|---:|---|
+| Provider | `--provider <kind>` | `AI_PROVIDER` | 否 | `openai-compatible`（可选 `anthropic`、`gemini`） |
+| API Base URL | `--base-url` | `AI_API_BASE_URL` | 条件 | OpenAI-compatible 必填；Anthropic 默认为 `https://api.anthropic.com`；Gemini 默认为 `https://generativelanguage.googleapis.com` |
+| API Key | `--api-key` | `AI_API_KEY` | 是 | 鉴权密钥 |
+| Model ID | `--model-id` | `AI_MODEL_ID` | 是 | 模型标识（如 `gpt-4o`, `claude-3-5-sonnet-20241022`, `gemini-1.5-pro`） |
+| 最大输出 Tokens | `--max-output-tokens` | `AI_MAX_OUTPUT_TOKENS` | 否 | 默认 `1024`，正整数 |
+| Prompt | `--prompt` | —，也可从 stdin 读取 | 是 | 单轮输入内容 |
+| 超时毫秒数 | `--timeout-ms` | `AI_CLI_TIMEOUT_MS` | 否 | 默认 `120000` |
+| 输出格式 | `--format text\|jsonl` | `AI_CLI_FORMAT` | 否 | 默认 `text` |
+| 禁用颜色 | `--no-color` | `NO_COLOR` | 否 | 禁用 ANSI 颜色 |
 
 推荐把 API Key 放在环境变量中，避免出现在系统进程列表中。
 
-## 4. 文本流式输出测试
+## 4. 三类 Provider 执行示例
+
+### 4.1 OpenAI-compatible
 
 ```bash
+AI_PROVIDER=openai-compatible \
 AI_API_BASE_URL="https://your-provider.example.com/v1" \
 AI_API_KEY="your-api-key" \
 AI_MODEL_ID="your-model-id" \
@@ -63,6 +68,33 @@ pnpm cli:test \
 ```
 
 因此 `--base-url` 应填写 API 根地址，不要包含 `/chat/completions`。
+
+### 4.2 Anthropic Messages 原生 API
+
+```bash
+AI_PROVIDER=anthropic \
+AI_API_KEY="your-anthropic-key" \
+AI_MODEL_ID="claude-3-5-sonnet-20241022" \
+AI_MAX_OUTPUT_TOKENS=1024 \
+pnpm cli:test \
+  --prompt "请只回复 OK" \
+  --no-color
+```
+
+若使用非默认网关，可传 `--base-url "https://custom-gateway.com"`。
+
+### 4.3 Gemini 原生 API
+
+```bash
+AI_PROVIDER=gemini \
+AI_API_KEY="your-gemini-key" \
+AI_MODEL_ID="gemini-1.5-pro" \
+pnpm cli:test \
+  --prompt "请只回复 OK" \
+  --no-color
+```
+
+若使用非默认网关，可传 `--base-url "https://custom-gateway.com"`。API Key 经由 `x-goog-api-key` Header 传递，不会暴露在 URL query 参数中。
 
 ## 5. JSONL 流式输出测试
 

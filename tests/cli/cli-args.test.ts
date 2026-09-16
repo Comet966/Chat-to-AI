@@ -4,9 +4,11 @@ import { parseCliArgs } from '../../apps/test-cli/src/cli-args.js'
 describe('cli-args', () => {
   it('should parse valid full options', () => {
     const rawArgs = [
+      '--provider', 'anthropic',
       '--base-url', 'https://api.example.com/v1',
       '--api-key', 'sk-test-123',
       '--model-id', 'gpt-4o-mini',
+      '--max-output-tokens', '2048',
       '--prompt', 'Hello AI',
       '--timeout-ms', '60000',
       '--format', 'jsonl',
@@ -17,9 +19,11 @@ describe('cli-args', () => {
     expect(result.success).toBe(true)
     if (result.success) {
       expect(result.args).toEqual({
+        provider: 'anthropic',
         baseUrl: 'https://api.example.com/v1',
         apiKey: 'sk-test-123',
         modelId: 'gpt-4o-mini',
+        maxOutputTokens: 2048,
         prompt: 'Hello AI',
         timeoutMs: 60000,
         format: 'jsonl',
@@ -44,6 +48,8 @@ describe('cli-args', () => {
   })
 
   it('should reject missing option values', () => {
+    expect(parseCliArgs(['--provider']).success).toBe(false)
+    expect(parseCliArgs(['--max-output-tokens']).success).toBe(false)
     expect(parseCliArgs(['--base-url']).success).toBe(false)
     expect(parseCliArgs(['--api-key']).success).toBe(false)
     expect(parseCliArgs(['--model-id']).success).toBe(false)
@@ -63,6 +69,16 @@ describe('cli-args', () => {
     expect(parseCliArgs(['--timeout-ms', '5000'])).toEqual({
       success: true,
       args: { timeoutMs: 5000 }
+    })
+  })
+
+  it('should validate max-output-tokens is a positive integer', () => {
+    expect(parseCliArgs(['--max-output-tokens', 'abc']).success).toBe(false)
+    expect(parseCliArgs(['--max-output-tokens', '-10']).success).toBe(false)
+    expect(parseCliArgs(['--max-output-tokens', '0']).success).toBe(false)
+    expect(parseCliArgs(['--max-output-tokens', '1024'])).toEqual({
+      success: true,
+      args: { maxOutputTokens: 1024 }
     })
   })
 

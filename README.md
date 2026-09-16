@@ -18,3 +18,21 @@
 - **Language**: TypeScript
 - **Frontend**: React / Vue + Tailwind CSS
 - **Packaging**: Electron Builder / Electron Forge
+
+## ✅ 已验证的命令行流式协议
+
+当前项目仍处于单模型、单会话阶段，`test-cli` 已完成以下三类协议的流式集成测试：
+
+| Provider | CLI Provider 值 | 已验证内容 |
+|---|---|---|
+| OpenAI-compatible | `openai-compatible` | `POST /chat/completions`、Bearer 鉴权、SSE delta、`[DONE]` 结束 |
+| Anthropic Messages | `anthropic` | `POST /v1/messages`、`anthropic-version`、命名 SSE 事件、`text_delta`、`message_stop` |
+| Gemini Generate Content | `gemini` | `streamGenerateContent`、`x-goog-api-key`、SSE 文本片段、`finishReason` |
+
+测试通过进程内 mock HTTP/SSE 服务覆盖文本输出和 JSONL 输出，并验证 API Key 不会出现在 stdout 或 stderr。运行命令：
+
+```bash
+pnpm exec vitest run tests/integration/provider-streams.test.ts
+```
+
+该测试不访问真实 Provider，也不会使用真实 API Key。完整 CLI 参数、三种 Provider 的人工 smoke test 示例和验收标准见 [TEST_CLI_TEST_FLOW.md](./TEST_CLI_TEST_FLOW.md)。

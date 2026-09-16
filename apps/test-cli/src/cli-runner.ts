@@ -1,5 +1,5 @@
 import { ChatKernel } from 'chat-core'
-import { OpenAICompatibleModelAdapter } from 'chat-model-adapters'
+import { createModelAdapter } from 'chat-model-adapters'
 import type { ChatEvent, StartChatCommand } from 'chat-contracts'
 import { CLI_EXIT_CODES, type CliExitCode } from './cli-exit-codes.js'
 import type { TestCliConfig } from './cli-config.js'
@@ -19,11 +19,7 @@ export interface RunCliResult {
 export async function runCli(options: RunCliOptions): Promise<RunCliResult> {
   const { config, output, customKernel, signalTarget = process } = options
 
-  const modelAdapter = new OpenAICompatibleModelAdapter({
-    baseUrl: config.baseUrl,
-    apiKey: config.apiKey,
-    modelId: config.modelId
-  })
+  const modelAdapter = createModelAdapter(config.providerConfig)
 
   const kernel = customKernel ?? new ChatKernel(modelAdapter)
 

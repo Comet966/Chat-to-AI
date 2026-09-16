@@ -1,30 +1,31 @@
 import dotenv from 'dotenv'
 import { resolve } from 'node:path'
-import { z } from 'zod'
+import {
+  resolveProviderConfig,
+  type ProviderConfig,
+  type RawProviderConfigInput
+} from 'chat-model-adapters'
 
 // Load environment variables from .env
 dotenv.config({ path: resolve(process.cwd(), '.env') })
 
-export const AppConfigSchema = z.object({
-  aiApiBaseUrl: z.string().url('AI_API_BASE_URL must be a valid URL'),
-  aiApiKey: z.string().min(1, 'AI_API_KEY must not be empty'),
-  aiModelId: z.string().min(1, 'AI_MODEL_ID must not be empty')
-})
+export interface AppConfig {
+  providerConfig: ProviderConfig
+  aiApiBaseUrl: string
+  aiApiKey: string
+  aiModelId: string
+}
 
-export type AppConfig = z.infer<typeof AppConfigSchema>
-
-export function loadAppConfig(): AppConfig {
-  const rawConfig = {
-    aiApiBaseUrl: process.env.AI_API_BASE_URL,
-    aiApiKey: process.env.AI_API_KEY,
-    aiModelId: process.env.AI_MODEL_ID
+export function loadAppConfig(overrides?: RawProviderConfigInput): AppConfig {
+  const result = resolveProviderConfig(overrides, process.env)
+  if (!result.success) {
+    throw new Error(`Configuration error: ${result.error}`)
   }
 
-  const parseResult = AppConfigSchema.safeParse(rawConfig)
-  if (!parseResult.success) {
-    const errorDetails = parseResult.error.errors.map((e) => `${e.path.join('.')}: ${e.message}`).join('; ')
-    throw new Error(`Configuration error: missing or invalid AI settings (${errorDetails})`)
+  return {
+    providerConfig: result.config,
+    aiApiBaseUrl: result.config.baseUrl,
+    aiApiKey: result.config.apiKey,
+    aiModelId: result.config.modelId
   }
-
-  return parseResult.data
 }

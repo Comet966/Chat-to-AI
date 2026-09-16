@@ -1,7 +1,9 @@
 export interface CliParsedArgs {
+  provider?: string
   baseUrl?: string
   apiKey?: string
   modelId?: string
+  maxOutputTokens?: number
   prompt?: string
   timeoutMs?: number
   format?: 'text' | 'jsonl'
@@ -35,6 +37,15 @@ export function parseCliArgs(rawArgs: string[]): ParseArgsResult {
       continue
     }
 
+    if (arg === '--provider') {
+      const val = rawArgs[++i]
+      if (val === undefined || val.startsWith('-')) {
+        return { success: false, error: 'Option --provider requires a value' }
+      }
+      args.provider = val
+      continue
+    }
+
     if (arg === '--base-url') {
       const val = rawArgs[++i]
       if (val === undefined || val.startsWith('-')) {
@@ -59,6 +70,19 @@ export function parseCliArgs(rawArgs: string[]): ParseArgsResult {
         return { success: false, error: 'Option --model-id requires a value' }
       }
       args.modelId = val
+      continue
+    }
+
+    if (arg === '--max-output-tokens') {
+      const val = rawArgs[++i]
+      if (val === undefined || val.startsWith('-')) {
+        return { success: false, error: 'Option --max-output-tokens requires a value' }
+      }
+      const parsedNum = Number(val)
+      if (!Number.isInteger(parsedNum) || parsedNum <= 0) {
+        return { success: false, error: 'Option --max-output-tokens must be a positive integer' }
+      }
+      args.maxOutputTokens = parsedNum
       continue
     }
 
@@ -105,15 +129,17 @@ export function getHelpText(): string {
 Headless CLI tool to test and verify the ChatKernel stream directly.
 
 Options:
-  --base-url <url>     OpenAI-compatible API base URL (env: AI_API_BASE_URL)
-  --api-key <key>      API key for authentication (env: AI_API_KEY)
-  --model-id <id>      Model identifier (env: AI_MODEL_ID)
-  --prompt <text>      Prompt content (if omitted, reads once from stdin)
-  --timeout-ms <n>     Request timeout in milliseconds (default: 120000, env: AI_CLI_TIMEOUT_MS)
-  --format <format>    Output format: 'text' or 'jsonl' (default: 'text', env: AI_CLI_FORMAT)
-  --no-color           Disable terminal colors (env: NO_COLOR)
-  --help, -h           Show this help message and exit
-  --version, -v        Show version and exit
+  --provider <kind>        Model provider kind: 'openai-compatible', 'anthropic', 'gemini' (default: 'openai-compatible', env: AI_PROVIDER)
+  --base-url <url>         API base URL (env: AI_API_BASE_URL)
+  --api-key <key>          API key for authentication (env: AI_API_KEY)
+  --model-id <id>          Model identifier (env: AI_MODEL_ID)
+  --max-output-tokens <n>  Maximum output tokens to generate (default: 1024, env: AI_MAX_OUTPUT_TOKENS)
+  --prompt <text>          Prompt content (if omitted, reads once from stdin)
+  --timeout-ms <n>         Request timeout in milliseconds (default: 120000, env: AI_CLI_TIMEOUT_MS)
+  --format <format>        Output format: 'text' or 'jsonl' (default: 'text', env: AI_CLI_FORMAT)
+  --no-color               Disable terminal colors (env: NO_COLOR)
+  --help, -h               Show this help message and exit
+  --version, -v            Show version and exit
 
 Security Notice:
   Passing --api-key via CLI arguments may expose it in system process listings.

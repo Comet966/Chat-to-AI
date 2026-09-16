@@ -149,7 +149,11 @@ describe('OpenAICompatibleModelAdapter', () => {
       { type: 'text-delta', text: 'First' }
     ])
 
-    controllerRef?.close()
+    try {
+      controllerRef?.close()
+    } catch {
+      // Ignored if stream was already cancelled by adapter cleanup
+    }
     fetchSpy.mockRestore()
   })
 

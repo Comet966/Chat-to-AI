@@ -1,9 +1,9 @@
 import { app, BrowserWindow, session } from 'electron'
 import { join } from 'node:path'
 import { ChatKernel } from 'chat-core'
+import { createModelAdapter } from 'chat-model-adapters'
 import { loadAppConfig, type AppConfig } from './app-config.js'
 import { registerElectronChatTransport } from './electron-transport.js'
-import { OpenAICompatibleModelAdapter } from './openai-compatible-model.adapter.js'
 
 export class ElectronHost {
   private mainWindow: BrowserWindow | null = null
@@ -12,11 +12,7 @@ export class ElectronHost {
 
   public async initialize(customConfig?: AppConfig): Promise<void> {
     const config = customConfig ?? loadAppConfig()
-    const modelAdapter = new OpenAICompatibleModelAdapter({
-      baseUrl: config.aiApiBaseUrl,
-      apiKey: config.aiApiKey,
-      modelId: config.aiModelId
-    })
+    const modelAdapter = createModelAdapter(config.providerConfig)
 
     this.kernel = new ChatKernel(modelAdapter)
     const rendererUrl = process.env.ELECTRON_RENDERER_URL

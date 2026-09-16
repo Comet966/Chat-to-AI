@@ -43,9 +43,18 @@ class FakeCliModel implements ChatModelPort {
 
 describe('cli-runner', () => {
   const createBaseConfig = () => ({
+    provider: 'openai-compatible' as const,
     baseUrl: 'https://fake-host.com/v1',
     apiKey: 'fake-key',
     modelId: 'fake-model',
+    maxOutputTokens: 1024,
+    providerConfig: {
+      provider: 'openai-compatible' as const,
+      baseUrl: 'https://fake-host.com/v1',
+      apiKey: 'fake-key',
+      modelId: 'fake-model',
+      maxOutputTokens: 1024
+    },
     prompt: 'Hello from test',
     timeoutMs: 5000,
     format: 'text' as const,
@@ -183,5 +192,26 @@ describe('cli-runner', () => {
     })
 
     expect(result.exitCode).toBe(CLI_EXIT_CODES.PROVIDER_UNAVAILABLE)
+  })
+
+  it('should initialize ChatKernel via createModelAdapter when customKernel is not provided', async () => {
+    const ssePayload = 'data: {"choices":[{"delta":{"content":"Hi from factory"}}]}\n\ndata: [DONE]\n\n'
+    const mockResponse = new Response(ssePayload, { status: 200 })
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(mockResponse)
+
+    let stdoutText = ''
+    const output = new CliOutputHandler('text', 'fake-key', true, {
+      stdout: (t) => { stdoutText += t },
+      stderr: () => {}
+    })
+
+    const result = await runCli({
+      config: createBaseConfig(),
+      output
+    })
+
+    expect(result.exitCode).toBe(CLI_EXIT_CODES.SUCCESS)
+    expect(stdoutText).toBe('Hi from factory\n')
+    fetchSpy.mockRestore()
   })
 })

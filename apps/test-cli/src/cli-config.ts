@@ -1,10 +1,22 @@
 import { MAX_SINGLE_MESSAGE_LENGTH } from 'chat-contracts'
+import {
+  resolveProviderConfig,
+  redactSecret,
+  type ProviderConfig,
+  type ModelProviderKind
+} from 'chat-model-adapters'
 import type { CliParsedArgs } from './cli-args.js'
 
+export { redactSecret }
+
 export interface TestCliConfig {
+  provider: ModelProviderKind
   baseUrl: string
   apiKey: string
   modelId: string
+  maxOutputTokens: number
+  anthropicVersion?: string
+  providerConfig: ProviderConfig
   prompt: string
   timeoutMs: number
   format: 'text' | 'jsonl'
@@ -20,33 +32,22 @@ export function resolveCliConfig(
   env: NodeJS.ProcessEnv = process.env,
   stdinContent?: string
 ): ResolveConfigResult {
-  const rawBaseUrl = args.baseUrl ?? env.AI_API_BASE_URL
-  if (!rawBaseUrl || typeof rawBaseUrl !== 'string' || !rawBaseUrl.trim()) {
-    return { success: false, error: 'Missing required configuration: base-url (via --base-url or AI_API_BASE_URL)' }
+  const providerRes = resolveProviderConfig(
+    {
+      provider: args.provider,
+      baseUrl: args.baseUrl,
+      apiKey: args.apiKey,
+      modelId: args.modelId,
+      maxOutputTokens: args.maxOutputTokens
+    },
+    env
+  )
+
+  if (!providerRes.success) {
+    return { success: false, error: providerRes.error }
   }
 
-  let sanitizedBaseUrl: string
-  try {
-    const urlObj = new URL(rawBaseUrl.trim())
-    if (urlObj.protocol !== 'http:' && urlObj.protocol !== 'https:') {
-      return { success: false, error: 'Invalid base-url: protocol must be http or https' }
-    }
-    sanitizedBaseUrl = `${urlObj.origin}${urlObj.pathname}`.replace(/\/+$/, '')
-  } catch {
-    return { success: false, error: `Invalid base-url format: "${rawBaseUrl}"` }
-  }
-
-  const rawApiKey = args.apiKey ?? env.AI_API_KEY
-  if (!rawApiKey || typeof rawApiKey !== 'string' || !rawApiKey.trim()) {
-    return { success: false, error: 'Missing required configuration: api-key (via --api-key or AI_API_KEY)' }
-  }
-  const apiKey = rawApiKey.trim()
-
-  const rawModelId = args.modelId ?? env.AI_MODEL_ID
-  if (!rawModelId || typeof rawModelId !== 'string' || !rawModelId.trim()) {
-    return { success: false, error: 'Missing required configuration: model-id (via --model-id or AI_MODEL_ID)' }
-  }
-  const modelId = rawModelId.trim()
+  const providerConfig = providerRes.config
 
   const rawPrompt = args.prompt ?? stdinContent
   if (rawPrompt === undefined || typeof rawPrompt !== 'string' || !rawPrompt.trim()) {
@@ -90,24 +91,17 @@ export function resolveCliConfig(
   return {
     success: true,
     config: {
-      baseUrl: sanitizedBaseUrl,
-      apiKey,
-      modelId,
+      provider: providerConfig.provider,
+      baseUrl: providerConfig.baseUrl,
+      apiKey: providerConfig.apiKey,
+      modelId: providerConfig.modelId,
+      maxOutputTokens: providerConfig.maxOutputTokens,
+      anthropicVersion: providerConfig.anthropicVersion,
+      providerConfig,
       prompt,
       timeoutMs,
       format,
       noColor
     }
   }
-}
-
-export function redactSecret(text: string, secret?: string): string {
-  if (!text) return text
-  let result = text
-  if (secret && secret.trim()) {
-    result = result.replaceAll(secret, '[REDACTED]')
-  }
-  // Also mask standard Bearer tokens if present
-  result = result.replace(/Bearer\s+[A-Za-z0-9._~+/-]+=*/g, 'Bearer [REDACTED]')
-  return result
 }

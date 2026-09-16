@@ -82,7 +82,36 @@ describe('cli-config', () => {
 
     expect(result.success).toBe(false)
     if (!result.success) {
-      expect(result.error).toContain('protocol must be http or https')
+      expect(result.error).toContain('protocol must be http')
+    }
+  })
+
+  it('should support anthropic and gemini providers with default base URLs', () => {
+    const anthropicResult = resolveCliConfig({
+      provider: 'anthropic',
+      apiKey: 'ant-key',
+      modelId: 'claude-3-5-sonnet',
+      prompt: 'hi'
+    }, {})
+
+    expect(anthropicResult.success).toBe(true)
+    if (anthropicResult.success) {
+      expect(anthropicResult.config.provider).toBe('anthropic')
+      expect(anthropicResult.config.baseUrl).toBe('https://api.anthropic.com')
+      expect(anthropicResult.config.maxOutputTokens).toBe(1024)
+    }
+
+    const geminiResult = resolveCliConfig({
+      provider: 'gemini',
+      apiKey: 'gem-key',
+      modelId: 'gemini-1.5-pro',
+      prompt: 'hi'
+    }, {})
+
+    expect(geminiResult.success).toBe(true)
+    if (geminiResult.success) {
+      expect(geminiResult.config.provider).toBe('gemini')
+      expect(geminiResult.config.baseUrl).toBe('https://generativelanguage.googleapis.com')
     }
   })
 

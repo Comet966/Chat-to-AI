@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "多 Provider 模型接入目标架构",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "output": "MULTI_PROVIDER_MODEL_ADAPTERS.html",
+    "viewBox": [1390, 760]
+  },
+  "components": [
+    { "id": "callers", "type": "external", "label": "调用方", "pos": [50, 350], "size": [155, 70] },
+    { "id": "config", "type": "security", "label": "模型配置", "sublabel": "provider + baseUrl + API Key", "pos": [265, 85], "size": [180, 70] },
+    { "id": "factory", "type": "backend", "label": "Model Adapter Factory", "sublabel": "显式 Provider 路由", "pos": [265, 210], "size": [180, 70] },
+    { "id": "kernel", "type": "backend", "label": "ChatKernel", "sublabel": "平台无关会话与流式状态机", "pos": [500, 350], "size": [185, 70] },
+    { "id": "port", "type": "backend", "label": "ChatModelPort", "sublabel": "统一 streamChat(messages, signal)", "pos": [720, 350], "size": [190, 70] },
+    { "id": "openai", "type": "backend", "label": "OpenAICompatibleAdapter", "sublabel": "Chat Completions + SSE", "pos": [950, 115], "size": [195, 66] },
+    { "id": "anthropic", "type": "backend", "label": "AnthropicMessagesAdapter", "sublabel": "Messages API + SSE", "pos": [950, 310], "size": [195, 66] },
+    { "id": "gemini", "type": "backend", "label": "GeminiGenerateContentAdapter", "sublabel": "generateContent + SSE", "pos": [950, 505], "size": [195, 66] },
+    { "id": "openaiApi", "type": "external", "label": "OpenAI-compatible API", "sublabel": "/chat/completions", "pos": [1185, 115], "size": [165, 66] },
+    { "id": "anthropicApi", "type": "external", "label": "Anthropic API", "sublabel": "/v1/messages", "pos": [1185, 310], "size": [165, 66] },
+    { "id": "geminiApi", "type": "external", "label": "Gemini API", "sublabel": "streamGenerateContent", "pos": [1185, 505], "size": [165, 66] }
+  ],
+  "connections": [
+    { "id": "callers-kernel", "from": "callers", "to": "kernel", "label": "命令与事件", "variant": "emphasis", "labelAt": [365, 332] },
+    { "id": "config-factory", "from": "config", "to": "factory", "variant": "security", "fromSide": "bottom", "toSide": "top" },
+    { "id": "factory-kernel", "from": "factory", "to": "kernel", "label": "注入 Adapter", "variant": "emphasis", "fromSide": "right", "toSide": "top", "via": [[485, 245], [592.5, 245], [592.5, 320]], "labelAt": [540, 235] },
+    { "id": "kernel-port", "from": "kernel", "to": "port", "label": "streamChat", "variant": "emphasis", "labelAt": [702.5, 332] },
+    { "id": "port-openai", "from": "port", "to": "openai", "fromSide": "right", "toSide": "left" },
+    { "id": "port-anthropic", "from": "port", "to": "anthropic", "fromSide": "right", "toSide": "left" },
+    { "id": "port-gemini", "from": "port", "to": "gemini", "fromSide": "right", "toSide": "left" },
+    { "id": "openai-request", "from": "openai", "to": "openaiApi" },
+    { "id": "anthropic-request", "from": "anthropic", "to": "anthropicApi" },
+    { "id": "gemini-request", "from": "gemini", "to": "geminiApi" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "稳定内核", "items": ["ChatKernel 与 ChatModelPort 不感知具体 Provider", "调用方继续只消费统一 ChatEvent"] },
+    { "dot": "emerald", "title": "Adapter 职责", "items": ["各 Adapter 负责请求映射、鉴权与 Provider 流协议解析", "统一转换为 text-delta 与 finish"] },
+    { "dot": "rose", "title": "安全边界", "items": ["API Key 仅保留在 Host / CLI 配置", "错误必须脱敏并映射到公共错误码"] }
+  ]
+}

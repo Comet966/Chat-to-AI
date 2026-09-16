@@ -166,12 +166,39 @@ function checkTestCliIfPresent() {
   })
 }
 
+function checkCallersDoNotImportConcreteAdapters() {
+  const callerDirs = [
+    path.join(rootDir, 'apps', 'test-cli', 'src'),
+    path.join(rootDir, 'apps', 'desktop', 'src')
+  ]
+  const concreteAdapters = [
+    'OpenAICompatibleModelAdapter',
+    'AnthropicMessagesModelAdapter',
+    'GeminiGenerateContentModelAdapter'
+  ]
+
+  for (const dir of callerDirs) {
+    scanDir(dir, (filePath) => {
+      const content = fs.readFileSync(filePath, 'utf8')
+      const relPath = path.relative(rootDir, filePath)
+
+      for (const adapter of concreteAdapters) {
+        const importRegex = new RegExp(`import\\s+[^;]*\\b${adapter}\\b[^;]*from`, 'g')
+        if (importRegex.test(content)) {
+          errors.push(`${relPath}: callers must not import concrete adapter "${adapter}" directly; use "createModelAdapter" factory instead.`)
+        }
+      }
+    })
+  }
+}
+
 checkCorePackageJson()
 checkContractsPackageJson()
 checkModelAdaptersPackageJson()
 checkCoreSourceFiles()
 checkDebugRendererIfPresent()
 checkTestCliIfPresent()
+checkCallersDoNotImportConcreteAdapters()
 
 if (errors.length > 0) {
   console.error('Architecture boundary violations found:')
