@@ -1,5 +1,8 @@
 import type { ChatEvent } from 'chat-contracts'
+import type { ConversationTurnEvent } from 'chat-conversation-runtime'
+import type { ConversationNodeId, ConversationTreeSnapshot } from 'chat-conversation-tree'
 import { redactSecret } from './cli-config.js'
+import { renderConversationTree } from './conversation-tree.renderer.js'
 
 export interface OutputStreams {
   stdout: (text: string) => void
@@ -41,8 +44,55 @@ export class CliOutputHandler {
     } else if (event.type === 'chat.stream.completed') {
       if (this.hasPrintedDelta) {
         this.stdout('\n')
+        this.hasPrintedDelta = false
       }
     }
+  }
+
+  public handleTurnEvent(event: ConversationTurnEvent): void {
+    if (this.format === 'jsonl') {
+      const sanitized = this.sanitizeJsonlEvent(event)
+      this.stdout(JSON.stringify(sanitized) + '\n')
+      return
+    }
+
+    // Text format
+    if (event.type === 'conversation.turn.delta') {
+      this.hasPrintedDelta = true
+      this.stdout(event.delta)
+    } else if (event.type === 'conversation.turn.completed') {
+      if (this.hasPrintedDelta) {
+        this.stdout('\n')
+        this.hasPrintedDelta = false
+      }
+    }
+  }
+
+  public writeTree(
+    snapshot: ConversationTreeSnapshot,
+    currentNodeId: ConversationNodeId,
+    contentWidth = 40
+  ): void {
+    if (this.format === 'jsonl') {
+      const payload = {
+        type: 'cli.tree.snapshot',
+        treeId: snapshot.treeId,
+        currentNodeId,
+        snapshot
+      }
+      this.stdout(JSON.stringify(payload) + '\n')
+      return
+    }
+
+    const rendered = renderConversationTree(snapshot, currentNodeId, {
+      contentWidth,
+      color: !this.noColor
+    })
+    this.stdout(rendered + '\n')
+  }
+
+  public writeRaw(text: string): void {
+    this.stdout(text)
   }
 
   public writeDiagnostic(message: string): void {
@@ -62,7 +112,7 @@ export class CliOutputHandler {
     this.stderr(formatted)
   }
 
-  private sanitizeJsonlEvent(event: ChatEvent): Record<string, unknown> {
+  private sanitizeJsonlEvent(event: object): Record<string, unknown> {
     const copy = { ...event } as Record<string, unknown>
     if (copy.error && typeof copy.error === 'object') {
       const err = copy.error as { message?: string }

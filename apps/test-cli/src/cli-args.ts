@@ -8,6 +8,10 @@ export interface CliParsedArgs {
   timeoutMs?: number
   format?: 'text' | 'jsonl'
   noColor?: boolean
+  interactive?: boolean
+  treeId?: string
+  showTree?: boolean
+  treeContentWidth?: number
   help?: boolean
   version?: boolean
 }
@@ -34,6 +38,38 @@ export function parseCliArgs(rawArgs: string[]): ParseArgsResult {
 
     if (arg === '--no-color') {
       args.noColor = true
+      continue
+    }
+
+    if (arg === '--interactive') {
+      args.interactive = true
+      continue
+    }
+
+    if (arg === '--show-tree') {
+      args.showTree = true
+      continue
+    }
+
+    if (arg === '--tree-id') {
+      const val = rawArgs[++i]
+      if (val === undefined || val.startsWith('-')) {
+        return { success: false, error: 'Option --tree-id requires a value' }
+      }
+      args.treeId = val
+      continue
+    }
+
+    if (arg === '--tree-content-width') {
+      const val = rawArgs[++i]
+      if (val === undefined || val.startsWith('-')) {
+        return { success: false, error: 'Option --tree-content-width requires a value' }
+      }
+      const parsedNum = Number(val)
+      if (!Number.isInteger(parsedNum) || parsedNum <= 0) {
+        return { success: false, error: 'Option --tree-content-width must be a positive integer' }
+      }
+      args.treeContentWidth = parsedNum
       continue
     }
 
@@ -138,6 +174,10 @@ Options:
   --timeout-ms <n>         Request timeout in milliseconds (default: 120000, env: AI_CLI_TIMEOUT_MS)
   --format <format>        Output format: 'text' or 'jsonl' (default: 'text', env: AI_CLI_FORMAT)
   --no-color               Disable terminal colors (env: NO_COLOR)
+  --interactive            Launch multi-turn interactive REPL session mode
+  --tree-id <id>           Specify in-memory conversation tree ID
+  --show-tree              Print tree topology after every completed turn
+  --tree-content-width <n> Maximum characters per node content in tree preview (default: 40)
   --help, -h               Show this help message and exit
   --version, -v            Show version and exit
 

@@ -14,7 +14,11 @@ const FORBIDDEN_CORE_IMPORTS = [
   'http',
   'https',
   'undici',
-  'axios'
+  'axios',
+  'chat-conversation-tree',
+  'chat-conversation-runtime',
+  'conversation-tree',
+  'conversation-runtime'
 ]
 
 const FORBIDDEN_KEYWORDS_IN_CORE = [
@@ -41,8 +45,8 @@ function checkCorePackageJson() {
   }
 
   for (const dep of [...deps, ...devDeps]) {
-    if (dep.includes('electron') || dep.includes('react') || dep.includes('zustand')) {
-      errors.push(`packages/chat-core has forbidden dependency: "${dep}". Electron/React/Zustand are prohibited.`)
+    if (dep.includes('electron') || dep.includes('react') || dep.includes('zustand') || dep.includes('conversation')) {
+      errors.push(`packages/chat-core has forbidden dependency: "${dep}". Electron/React/Zustand/Conversation are prohibited.`)
     }
   }
 }
@@ -56,7 +60,7 @@ function checkContractsPackageJson() {
   const devDeps = Object.keys(pkg.devDependencies || {})
 
   for (const dep of [...deps, ...devDeps]) {
-    if (dep.includes('electron') || dep.includes('react') || dep.includes('zustand')) {
+    if (dep.includes('electron') || dep.includes('react') || dep.includes('zustand') || dep.includes('conversation')) {
       errors.push(`packages/chat-contracts has forbidden dependency: "${dep}".`)
     }
   }
@@ -71,9 +75,162 @@ function checkModelAdaptersPackageJson() {
   const devDeps = Object.keys(pkg.devDependencies || {})
 
   for (const dep of [...deps, ...devDeps]) {
-    if (dep.includes('electron') || dep.includes('react') || dep.includes('zustand')) {
+    if (dep.includes('electron') || dep.includes('react') || dep.includes('zustand') || dep.includes('conversation')) {
       errors.push(`packages/chat-model-adapters has forbidden dependency: "${dep}".`)
     }
+  }
+}
+
+function checkConversationTreePackageJson() {
+  const pkgPath = path.join(rootDir, 'packages', 'conversation-tree', 'package.json')
+  if (!fs.existsSync(pkgPath)) return
+
+  const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'))
+  const deps = Object.keys(pkg.dependencies || {})
+  const devDeps = Object.keys(pkg.devDependencies || {})
+
+  if (deps.length > 0) {
+    errors.push(`packages/conversation-tree must have zero production dependencies, found: ${deps.join(', ')}`)
+  }
+
+  for (const dep of devDeps) {
+    if (dep !== 'typescript') {
+      errors.push(`packages/conversation-tree has forbidden devDependency: "${dep}". Only "typescript" is permitted.`)
+    }
+  }
+}
+
+function checkConversationRuntimePackageJson() {
+  const pkgPath = path.join(rootDir, 'packages', 'conversation-runtime', 'package.json')
+  if (!fs.existsSync(pkgPath)) return
+
+  const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'))
+  const deps = Object.keys(pkg.dependencies || {})
+  const devDeps = Object.keys(pkg.devDependencies || {})
+
+  const allowedDeps = ['chat-contracts', 'chat-conversation-tree']
+  for (const dep of deps) {
+    if (!allowedDeps.includes(dep)) {
+      errors.push(`packages/conversation-runtime has forbidden production dependency: "${dep}". Allowed: ${allowedDeps.join(', ')}`)
+    }
+  }
+
+  for (const dep of devDeps) {
+    if (dep !== 'typescript') {
+      errors.push(`packages/conversation-runtime has forbidden devDependency: "${dep}". Only "typescript" is permitted.`)
+    }
+  }
+}
+
+function checkConversationTreeSourceFiles() {
+  const treeSrc = path.join(rootDir, 'packages', 'conversation-tree', 'src')
+  if (!fs.existsSync(treeSrc)) return
+
+  const FORBIDDEN_TREE_IMPORTS = [
+    'electron',
+    'react',
+    'zustand',
+    'chat-core',
+    'chat-contracts',
+    'chat-model-adapters',
+    'chat-conversation-runtime',
+    'http',
+    'https',
+    'undici',
+    'axios'
+  ]
+
+  const FORBIDDEN_TREE_SYMBOLS = [
+    'OpenAICompatibleModelAdapter',
+    'AnthropicMessagesModelAdapter',
+    'GeminiGenerateContentModelAdapter',
+    'ChatKernel',
+    'ChatModelPort',
+    'fetch',
+    'AbortController',
+    'ipcMain',
+    'ipcRenderer',
+    'BrowserWindow'
+  ]
+
+  scanDir(treeSrc, (filePath) => {
+    const content = fs.readFileSync(filePath, 'utf8')
+    const relPath = path.relative(rootDir, filePath)
+
+    for (const forbidden of FORBIDDEN_TREE_IMPORTS) {
+      const regex = new RegExp(`from\\s+['"]${forbidden}(/.*)?['"]`, 'g')
+      if (regex.test(content)) {
+        errors.push(`${relPath}: conversation-tree must not import "${forbidden}"`)
+      }
+    }
+
+    for (const sym of FORBIDDEN_TREE_SYMBOLS) {
+      const regex = new RegExp(`\\b${sym}\\b`, 'g')
+      if (regex.test(content)) {
+        errors.push(`${relPath}: conversation-tree must not use symbol "${sym}"`)
+      }
+    }
+  })
+}
+
+function checkConversationRuntimeSourceFiles() {
+  const runtimeSrc = path.join(rootDir, 'packages', 'conversation-runtime', 'src')
+  if (!fs.existsSync(runtimeSrc)) return
+
+  const FORBIDDEN_RUNTIME_IMPORTS = [
+    'electron',
+    'react',
+    'zustand',
+    'readline',
+    'node:readline',
+    'http',
+    'https',
+    'undici',
+    'axios'
+  ]
+
+  const FORBIDDEN_CONCRETE_ADAPTERS = [
+    'OpenAICompatibleModelAdapter',
+    'AnthropicMessagesModelAdapter',
+    'GeminiGenerateContentModelAdapter'
+  ]
+
+  scanDir(runtimeSrc, (filePath) => {
+    const content = fs.readFileSync(filePath, 'utf8')
+    const relPath = path.relative(rootDir, filePath)
+
+    for (const forbidden of FORBIDDEN_RUNTIME_IMPORTS) {
+      const regex = new RegExp(`from\\s+['"]${forbidden}(/.*)?['"]`, 'g')
+      if (regex.test(content)) {
+        errors.push(`${relPath}: conversation-runtime must not import "${forbidden}"`)
+      }
+    }
+
+    for (const adapter of FORBIDDEN_CONCRETE_ADAPTERS) {
+      const regex = new RegExp(`\\b${adapter}\\b`, 'g')
+      if (regex.test(content)) {
+        errors.push(`${relPath}: conversation-runtime must not use concrete adapter "${adapter}"`)
+      }
+    }
+  })
+}
+
+function checkDesktopAndDebugRendererDoNotImportRuntimeOrTree() {
+  const forbiddenDirs = [
+    path.join(rootDir, 'apps', 'desktop', 'src'),
+    path.join(rootDir, 'apps', 'debug-renderer', 'src')
+  ]
+
+  for (const dir of forbiddenDirs) {
+    scanDir(dir, (filePath) => {
+      const content = fs.readFileSync(filePath, 'utf8')
+      const relPath = path.relative(rootDir, filePath)
+
+      if (content.includes('chat-conversation-tree') || content.includes('conversation-tree') ||
+          content.includes('chat-conversation-runtime') || content.includes('conversation-runtime')) {
+        errors.push(`${relPath}: desktop and debug-renderer must not integrate conversation-tree or conversation-runtime in this phase.`)
+      }
+    })
   }
 }
 
@@ -83,10 +240,10 @@ function scanDir(dirPath, handler) {
   for (const entry of entries) {
     const fullPath = path.join(dirPath, entry.name)
     if (entry.isDirectory()) {
-      if (entry.name !== 'node_modules' && entry.name !== 'dist') {
+      if (entry.name !== 'node_modules' && entry.name !== 'dist' && entry.name !== 'out') {
         scanDir(fullPath, handler)
       }
-    } else if (entry.isFile() && (entry.name.endsWith('.ts') || entry.name.endsWith('.tsx'))) {
+    } else if (entry.isFile() && (entry.name.endsWith('.ts') || entry.name.endsWith('.tsx') || entry.name.endsWith('.mjs'))) {
       handler(fullPath)
     }
   }
@@ -195,9 +352,14 @@ function checkCallersDoNotImportConcreteAdapters() {
 checkCorePackageJson()
 checkContractsPackageJson()
 checkModelAdaptersPackageJson()
+checkConversationTreePackageJson()
+checkConversationRuntimePackageJson()
 checkCoreSourceFiles()
 checkDebugRendererIfPresent()
 checkTestCliIfPresent()
+checkConversationTreeSourceFiles()
+checkConversationRuntimeSourceFiles()
+checkDesktopAndDebugRendererDoNotImportRuntimeOrTree()
 checkCallersDoNotImportConcreteAdapters()
 
 if (errors.length > 0) {

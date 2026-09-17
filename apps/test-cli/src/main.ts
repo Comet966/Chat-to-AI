@@ -3,6 +3,7 @@ import { resolveCliConfig } from './cli-config.js'
 import { CLI_EXIT_CODES } from './cli-exit-codes.js'
 import { CliOutputHandler } from './cli-output.js'
 import { runCli } from './cli-runner.js'
+import { runSessionCli } from './session-cli-runner.js'
 
 async function readStdin(): Promise<string> {
   if (process.stdin.isTTY) {
@@ -39,7 +40,7 @@ export async function main(): Promise<void> {
   }
 
   let stdinContent: string | undefined
-  if (!args.prompt) {
+  if (!args.interactive && !args.prompt) {
     stdinContent = await readStdin()
   }
 
@@ -52,8 +53,13 @@ export async function main(): Promise<void> {
   const { config } = configResult
   const output = new CliOutputHandler(config.format, config.apiKey, config.noColor)
 
-  const { exitCode } = await runCli({ config, output })
-  process.exit(exitCode)
+  if (config.interactive) {
+    const { exitCode } = await runSessionCli({ config, output })
+    process.exit(exitCode)
+  } else {
+    const { exitCode } = await runCli({ config, output })
+    process.exit(exitCode)
+  }
 }
 
 // If executed directly as a script

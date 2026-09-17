@@ -13,6 +13,8 @@
   },
   "dependencies": {
     "chat-contracts": "workspace:*",
+    "chat-conversation-runtime": "workspace:*",
+    "chat-conversation-tree": "workspace:*",
     "chat-core": "workspace:*",
     "chat-model-adapters": "workspace:*"
   },

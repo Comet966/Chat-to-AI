@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "会话树独立内核目标架构",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "output": "CONVERSATION_TREE_ARCHITECTURE.html",
+    "viewBox": [1230, 760]
+  },
+  "components": [
+    { "id": "coordinator", "type": "external", "label": "未来对话协调器", "sublabel": "本阶段不实现", "pos": [45, 335], "size": [165, 70] },
+    { "id": "service", "type": "backend", "label": "ConversationTreeService", "sublabel": "Commands + Queries", "pos": [270, 335], "size": [190, 70] },
+    { "id": "aggregate", "type": "backend", "label": "ConversationTree", "sublabel": "单根、父子关系、版本", "pos": [525, 335], "size": [180, 70] },
+    { "id": "guard", "type": "security", "label": "TreeInvariantGuard", "sublabel": "无环与同树约束", "pos": [525, 125], "size": [180, 70] },
+    { "id": "repository", "type": "backend", "label": "ConversationTreeRepository", "sublabel": "Port + 乐观版本", "pos": [770, 335], "size": [195, 70] },
+    { "id": "memory", "type": "database", "label": "InMemory Repository", "sublabel": "本阶段实现", "pos": [1030, 220], "size": [165, 70] },
+    { "id": "persistence", "type": "database", "label": "持久化 Adapter", "sublabel": "未来 SQLite / 文件", "pos": [1030, 455], "size": [165, 70] },
+    { "id": "stream", "type": "external", "label": "模型流式运行时", "sublabel": "Provider / SSE / Abort", "pos": [270, 555], "size": [190, 70] }
+  ],
+  "connections": [
+    { "id": "coordinator-service", "from": "coordinator", "to": "service", "label": "未来：命令与查询", "variant": "emphasis", "labelAt": [240, 320] },
+    { "id": "service-aggregate", "from": "service", "to": "aggregate", "label": "树操作", "variant": "emphasis", "labelAt": [493, 320] },
+    { "id": "aggregate-guard", "from": "aggregate", "to": "guard", "label": "每次变更后验证", "variant": "security", "fromSide": "top", "toSide": "bottom" },
+    { "id": "aggregate-repository", "from": "aggregate", "to": "repository", "label": "snapshot 持久化", "variant": "emphasis", "labelAt": [738, 320] },
+    { "id": "repository-memory", "from": "repository", "to": "memory", "label": "本阶段实现" },
+    { "id": "repository-persistence", "from": "repository", "to": "persistence", "label": "未来实现", "variant": "dashed" },
+    { "id": "coordinator-stream", "from": "coordinator", "to": "stream", "label": "未来：请求编排", "variant": "dashed", "fromSide": "bottom", "toSide": "left" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "会话边界", "items": ["一个 ConversationTreeId 定义一个独立会话", "分支是同一棵树中的 root-to-leaf 路径"] },
+    { "dot": "emerald", "title": "结构不变量", "items": ["非空树恰有一个根节点", "父节点必须存在且属于同一棵树", "任何路径不得重复节点"] },
+    { "dot": "rose", "title": "强制解耦", "items": ["树内核不依赖 ChatKernel、Provider Adapter、SSE 或 AbortSignal", "节点只保留对话内容与最小生成来源"] }
+  ]
+}

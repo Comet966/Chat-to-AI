@@ -15,6 +15,13 @@
     "typecheck:test-cli": "pnpm --filter chat-test-cli run typecheck",
     "test:test-cli": "vitest run tests/cli",
     "build:test-cli": "pnpm --filter chat-model-adapters --filter chat-test-cli run build",
+    "typecheck:conversation-tree": "pnpm --filter chat-conversation-tree run typecheck",
+    "test:conversation-tree": "vitest run tests/conversation-tree",
+    "build:conversation-tree": "pnpm --filter chat-conversation-tree run build",
+    "typecheck:conversation-runtime": "pnpm --filter chat-conversation-runtime run typecheck",
+    "test:conversation-runtime": "vitest run tests/conversation-runtime tests/cli",
+    "build:conversation-runtime": "pnpm --filter chat-conversation-runtime run build",
+    "cli:session": "pnpm --filter chat-test-cli run start -- --interactive",
     "typecheck": "pnpm -r run typecheck",
     "test": "vitest run",
     "build": "pnpm -r run build"

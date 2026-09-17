@@ -172,7 +172,7 @@ export function createModelAdapter(config: ProviderConfig): ChatModelPort
 | `tests/adapters/*.test.ts` | 新增/重构 | 三种协议 fixture、错误/取消/SSE 边界测试 |
 | `tests/cli/*.test.ts` | 修改 | provider 参数、默认兼容与传递 factory 测试 |
 | `tests/integration/provider-streams.test.ts` | 新增 | 本地 HTTP mock 对每个 Provider 的真实 `fetch` + SSE 端到端验证 |
-| `TEST_CLI_TEST_FLOW.md` | 修改 | 新增三个 Provider 的执行示例 |
+| [`TEST_CLI_TEST_FLOW.md`](../../../TEST_CLI_TEST_FLOW.md) | 修改 | 新增三个 Provider 的执行示例 |
 
 `apps/desktop/src/main/openai-compatible-model.adapter.ts` 若只是兼容 re-export，应删除或替换为指向共享包的 re-export；不得留下两份实现。
 

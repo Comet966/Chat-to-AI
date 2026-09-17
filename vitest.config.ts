@@ -11,7 +11,9 @@ export default defineConfig({
     alias: {
       'chat-contracts': resolve(__dirname, 'packages/chat-contracts/src/index.ts'),
       'chat-core': resolve(__dirname, 'packages/chat-core/src/index.ts'),
-      'chat-model-adapters': resolve(__dirname, 'packages/chat-model-adapters/src/index.ts')
+      'chat-model-adapters': resolve(__dirname, 'packages/chat-model-adapters/src/index.ts'),
+      'chat-conversation-tree': resolve(__dirname, 'packages/conversation-tree/src/index.ts'),
+      'chat-conversation-runtime': resolve(__dirname, 'packages/conversation-runtime/src/index.ts')
     }
   }
 })

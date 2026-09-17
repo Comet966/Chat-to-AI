@@ -91,6 +91,12 @@ importers:
       chat-contracts:
         specifier: workspace:*
         version: link:../../packages/chat-contracts
+      chat-conversation-runtime:
+        specifier: workspace:*
+        version: link:../../packages/conversation-runtime
+      chat-conversation-tree:
+        specifier: workspace:*
+        version: link:../../packages/conversation-tree
       chat-core:
         specifier: workspace:*
         version: link:../../packages/chat-core
@@ -136,6 +142,25 @@ importers:
       zod:
         specifier: 3.24.2
         version: 3.24.2
+    devDependencies:
+      typescript:
+        specifier: 5.8.2
+        version: 5.8.2
+
+  packages/conversation-runtime:
+    dependencies:
+      chat-contracts:
+        specifier: workspace:*
+        version: link:../chat-contracts
+      chat-conversation-tree:
+        specifier: workspace:*
+        version: link:../conversation-tree
+    devDependencies:
+      typescript:
+        specifier: 5.8.2
+        version: 5.8.2
+
+  packages/conversation-tree:
     devDependencies:
       typescript:
         specifier: 5.8.2

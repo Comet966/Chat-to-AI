@@ -21,6 +21,10 @@ export interface TestCliConfig {
   timeoutMs: number
   format: 'text' | 'jsonl'
   noColor: boolean
+  interactive: boolean
+  treeId?: string
+  showTree: boolean
+  treeContentWidth: number
 }
 
 export type ResolveConfigResult =
@@ -49,20 +53,27 @@ export function resolveCliConfig(
 
   const providerConfig = providerRes.config
 
+  const isInteractive = Boolean(args.interactive)
   const rawPrompt = args.prompt ?? stdinContent
-  if (rawPrompt === undefined || typeof rawPrompt !== 'string' || !rawPrompt.trim()) {
-    return {
-      success: false,
-      error: 'Missing required prompt: provide --prompt <text> or pipe content via standard input (stdin)'
-    }
-  }
-  const prompt = rawPrompt.trim()
+  let prompt = ''
 
-  if (prompt.length > MAX_SINGLE_MESSAGE_LENGTH) {
-    return {
-      success: false,
-      error: `Prompt exceeds maximum allowed length of ${MAX_SINGLE_MESSAGE_LENGTH} characters (was ${prompt.length})`
+  if (!isInteractive) {
+    if (rawPrompt === undefined || typeof rawPrompt !== 'string' || !rawPrompt.trim()) {
+      return {
+        success: false,
+        error: 'Missing required prompt: provide --prompt <text> or pipe content via standard input (stdin)'
+      }
     }
+    prompt = rawPrompt.trim()
+
+    if (prompt.length > MAX_SINGLE_MESSAGE_LENGTH) {
+      return {
+        success: false,
+        error: `Prompt exceeds maximum allowed length of ${MAX_SINGLE_MESSAGE_LENGTH} characters (was ${prompt.length})`
+      }
+    }
+  } else if (rawPrompt && typeof rawPrompt === 'string' && rawPrompt.trim()) {
+    prompt = rawPrompt.trim()
   }
 
   let timeoutMs = 120000
@@ -101,7 +112,11 @@ export function resolveCliConfig(
       prompt,
       timeoutMs,
       format,
-      noColor
+      noColor,
+      interactive: isInteractive,
+      treeId: args.treeId,
+      showTree: Boolean(args.showTree),
+      treeContentWidth: args.treeContentWidth ?? 40
     }
   }
 }
