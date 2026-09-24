@@ -8,8 +8,9 @@ import {
   type StartChatCommand,
   type StartChatResult
 } from 'chat-contracts'
+import { createDesktopBridge } from './desktop-api.js'
 
-const bridgeApi: ElectronChatBridgeApi = {
+const debugBridgeApi: ElectronChatBridgeApi = {
   start: (command: StartChatCommand): Promise<StartChatResult> => {
     return ipcRenderer.invoke(IPC_CHANNELS.CHAT_STREAM_START, command)
   },
@@ -27,4 +28,5 @@ const bridgeApi: ElectronChatBridgeApi = {
   }
 }
 
-contextBridge.exposeInMainWorld('debugChatApi', bridgeApi)
+contextBridge.exposeInMainWorld('debugChatApi', debugBridgeApi)
+contextBridge.exposeInMainWorld('desktopApi', createDesktopBridge())

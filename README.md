@@ -62,6 +62,27 @@ pnpm lint:boundaries
 pnpm test
 ```
 
+## 🖥️ Electron 桌面端 GUI（第一阶段预览）
+
+桌面端 GUI 骨架位于 `apps/desktop`，基于 Electron + React 19 + React Router (`HashRouter`) 构建。当前阶段为 **UI 预览阶段，尚未连接后端真实内核与模型 API**：
+
+- 包含“AI 对话主界面”与“供应商配置”两个独立页面，支持无刷新双向跳转。
+- 供应商配置仅保存在内存演示适配器中，API Key 不落盘、不持久化。
+- 对话主界面使用本地演示适配器，返回标注为 `[UI Preview]` 的本地模拟回复，不发出真实网络请求。
+- 启动不依赖任何 `AI_*` 环境变量。
+
+启动桌面端开发模式：
+
+```bash
+pnpm --filter chat-desktop run dev
+```
+
+构建桌面端（Main / Preload / Renderer）：
+
+```bash
+pnpm build:desktop
+```
+
 启动交互式会话调试 CLI：
 
 ```bash

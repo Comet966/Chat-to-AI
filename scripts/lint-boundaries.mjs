@@ -349,6 +349,74 @@ function checkCallersDoNotImportConcreteAdapters() {
   }
 }
 
+function checkDesktopRendererBoundaries() {
+  const rendererDir = path.join(rootDir, 'apps', 'desktop', 'src', 'renderer')
+  if (!fs.existsSync(rendererDir)) return
+
+  const forbiddenRendererImports = [
+    'electron',
+    'chat-core',
+    'chat-model-adapters',
+    'chat-conversation-tree',
+    'chat-conversation-runtime'
+  ]
+
+  scanDir(rendererDir, (filePath) => {
+    const content = fs.readFileSync(filePath, 'utf8')
+    const relPath = path.relative(rootDir, filePath)
+
+    for (const forbidden of forbiddenRendererImports) {
+      const regex = new RegExp(`from\\s+['"]${forbidden}(/.*)?['"]`, 'g')
+      if (regex.test(content)) {
+        errors.push(`${relPath}: desktop renderer must not import "${forbidden}"`)
+      }
+    }
+  })
+}
+
+function checkDesktopSharedBoundaries() {
+  const sharedDir = path.join(rootDir, 'apps', 'desktop', 'src', 'shared')
+  if (!fs.existsSync(sharedDir)) return
+
+  const forbiddenSharedImports = [
+    'electron',
+    'react',
+    'react-dom',
+    'node:fs',
+    'node:path',
+    'node:process',
+    'fs',
+    'path'
+  ]
+
+  scanDir(sharedDir, (filePath) => {
+    const content = fs.readFileSync(filePath, 'utf8')
+    const relPath = path.relative(rootDir, filePath)
+
+    for (const forbidden of forbiddenSharedImports) {
+      const regex = new RegExp(`from\\s+['"]${forbidden}(/.*)?['"]`, 'g')
+      if (regex.test(content)) {
+        errors.push(`${relPath}: desktop shared contract must not import "${forbidden}"`)
+      }
+    }
+  })
+}
+
+function checkDesktopMainDoesNotImportRenderer() {
+  const mainDir = path.join(rootDir, 'apps', 'desktop', 'src', 'main')
+  if (!fs.existsSync(mainDir)) return
+
+  scanDir(mainDir, (filePath) => {
+    const content = fs.readFileSync(filePath, 'utf8')
+    const relPath = path.relative(rootDir, filePath)
+
+    const importRegex = /from\s+['"][^'"]*renderer[^'"]*['"]/g
+    if (importRegex.test(content)) {
+      errors.push(`${relPath}: main process must not import from renderer`)
+    }
+  })
+}
+
 checkCorePackageJson()
 checkContractsPackageJson()
 checkModelAdaptersPackageJson()
@@ -361,6 +429,9 @@ checkConversationTreeSourceFiles()
 checkConversationRuntimeSourceFiles()
 checkDesktopAndDebugRendererDoNotImportRuntimeOrTree()
 checkCallersDoNotImportConcreteAdapters()
+checkDesktopRendererBoundaries()
+checkDesktopSharedBoundaries()
+checkDesktopMainDoesNotImportRenderer()
 
 if (errors.length > 0) {
   console.error('Architecture boundary violations found:')
