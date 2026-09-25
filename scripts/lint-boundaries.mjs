@@ -221,14 +221,23 @@ function checkDesktopAndDebugRendererDoNotImportRuntimeOrTree() {
     path.join(rootDir, 'apps', 'debug-renderer', 'src')
   ]
 
+  const forbiddenPackages = [
+    'chat-conversation-tree',
+    'conversation-tree',
+    'chat-conversation-runtime',
+    'conversation-runtime'
+  ]
+
   for (const dir of forbiddenDirs) {
     scanDir(dir, (filePath) => {
       const content = fs.readFileSync(filePath, 'utf8')
       const relPath = path.relative(rootDir, filePath)
 
-      if (content.includes('chat-conversation-tree') || content.includes('conversation-tree') ||
-          content.includes('chat-conversation-runtime') || content.includes('conversation-runtime')) {
-        errors.push(`${relPath}: desktop and debug-renderer must not integrate conversation-tree or conversation-runtime in this phase.`)
+      for (const pkg of forbiddenPackages) {
+        const importRegex = new RegExp(`from\\s+['"]${pkg}(/.*)?['"]|require\\(['"]${pkg}(/.*)?['"]\\)`, 'g')
+        if (importRegex.test(content)) {
+          errors.push(`${relPath}: desktop and debug-renderer must not integrate "${pkg}" in this phase.`)
+        }
       }
     })
   }
@@ -417,6 +426,33 @@ function checkDesktopMainDoesNotImportRenderer() {
   })
 }
 
+function checkDesktopPortBoundaries() {
+  const portsDir = path.join(rootDir, 'apps', 'desktop', 'src', 'renderer', 'src', 'ports')
+  if (!fs.existsSync(portsDir)) return
+
+  const forbiddenPortImports = [
+    '@xyflow/react',
+    '@dagrejs/dagre',
+    'electron',
+    'chat-core',
+    'chat-conversation-tree',
+    'chat-conversation-runtime',
+    'chat-model-adapters'
+  ]
+
+  scanDir(portsDir, (filePath) => {
+    const content = fs.readFileSync(filePath, 'utf8')
+    const relPath = path.relative(rootDir, filePath)
+
+    for (const forbidden of forbiddenPortImports) {
+      const regex = new RegExp(`from\\s+['"]${forbidden}(/.*)?['"]`, 'g')
+      if (regex.test(content)) {
+        errors.push(`${relPath}: UI port must not import "${forbidden}"`)
+      }
+    }
+  })
+}
+
 checkCorePackageJson()
 checkContractsPackageJson()
 checkModelAdaptersPackageJson()
@@ -432,6 +468,7 @@ checkCallersDoNotImportConcreteAdapters()
 checkDesktopRendererBoundaries()
 checkDesktopSharedBoundaries()
 checkDesktopMainDoesNotImportRenderer()
+checkDesktopPortBoundaries()
 
 if (errors.length > 0) {
   console.error('Architecture boundary violations found:')
