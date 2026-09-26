@@ -62,8 +62,8 @@ describe('DemoConversationTreeUiAdapter', () => {
     const adapter = new DemoConversationTreeUiAdapter()
     const addResult = await adapter.addChildNode({
       parentId: 'node-a2-b2',
-      role: 'user',
-      content: 'Can you show concrete code for Strategy B?'
+      question: 'Can you show concrete code for Strategy B?',
+      answer: 'Yes. Here is a concise example.'
     })
 
     expect(addResult.ok).toBe(true)
@@ -72,18 +72,18 @@ describe('DemoConversationTreeUiAdapter', () => {
     const newNode = addResult.value.nodes.find((n) => n.id === addResult.value.currentNodeId)
     expect(newNode).toBeDefined()
     expect(newNode?.parentId).toBe('node-a2-b2')
-    expect(newNode?.content).toBe('Can you show concrete code for Strategy B?')
-    expect(newNode?.role).toBe('user')
+    expect(newNode?.question).toBe('Can you show concrete code for Strategy B?')
+    expect(newNode?.answer).toBe('Yes. Here is a concise example.')
     expect(addResult.value.revision).toBe(DEFAULT_DEMO_TREE_SNAPSHOT.revision + 1)
   })
 
-  it('rejects adding child node with empty content or non-existent parent', async () => {
+  it('rejects adding an incomplete turn or using a non-existent parent', async () => {
     const adapter = new DemoConversationTreeUiAdapter()
 
     const emptyContent = await adapter.addChildNode({
       parentId: 'node-u1',
-      role: 'assistant',
-      content: '   '
+      question: 'A valid question',
+      answer: '   '
     })
     expect(emptyContent.ok).toBe(false)
     if (!emptyContent.ok) {
@@ -92,8 +92,8 @@ describe('DemoConversationTreeUiAdapter', () => {
 
     const missingParent = await adapter.addChildNode({
       parentId: 'node-ghost',
-      role: 'user',
-      content: 'hello'
+      question: 'hello',
+      answer: 'world'
     })
     expect(missingParent.ok).toBe(false)
     if (!missingParent.ok) {

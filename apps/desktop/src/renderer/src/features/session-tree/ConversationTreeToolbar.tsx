@@ -1,8 +1,11 @@
 import React from 'react'
 import { Button } from '../../components/Button.js'
+import type { ConversationInheritanceMode } from '../../ports/conversation-tree-ui.port.js'
 
 export interface ConversationTreeToolbarProps {
   selectedCount: number
+  inheritanceMode: ConversationInheritanceMode
+  inheritedCount: number
   protectedRootSelected: boolean
   canSetCurrent: boolean
   canAddChild: boolean
@@ -13,10 +16,13 @@ export interface ConversationTreeToolbarProps {
   onDelete: () => void
   onFitView: () => void
   onFocusCurrent: () => void
+  onInheritanceModeChange: (mode: ConversationInheritanceMode) => void
 }
 
 export function ConversationTreeToolbar({
   selectedCount,
+  inheritanceMode,
+  inheritedCount,
   protectedRootSelected,
   canSetCurrent,
   canAddChild,
@@ -26,10 +32,41 @@ export function ConversationTreeToolbar({
   onAddChild,
   onDelete,
   onFitView,
-  onFocusCurrent
+  onFocusCurrent,
+  onInheritanceModeChange
 }: ConversationTreeToolbarProps) {
   return (
     <div className="tree-toolbar" role="toolbar" aria-label="会话树操作栏">
+      <div className="tree-inheritance-control">
+        <div className="tree-inheritance-copy">
+          <span className="tree-inheritance-title">上下文继承</span>
+          <span className="tree-inheritance-summary">已包含 {inheritedCount} 轮</span>
+        </div>
+        <div className="tree-mode-switch" aria-label="选择会话继承模式">
+          <button
+            type="button"
+            className="tree-mode-button"
+            aria-pressed={inheritanceMode === 'root-path'}
+            onClick={() => onInheritanceModeChange('root-path')}
+          >
+            根路径继承
+          </button>
+          <button
+            type="button"
+            className="tree-mode-button"
+            aria-pressed={inheritanceMode === 'manual'}
+            onClick={() => onInheritanceModeChange('manual')}
+          >
+            自由选择
+          </button>
+        </div>
+        <p className="tree-inheritance-help">
+          {inheritanceMode === 'root-path'
+            ? '自动继承从根节点到当前节点的全部问答。'
+            : '点击圆形节点，将任意问答加入或移出上下文。'}
+        </p>
+      </div>
+
       <div className="tree-toolbar-actions">
         <Button
           type="button"

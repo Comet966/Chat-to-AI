@@ -1,9 +1,11 @@
 /* Conversation Tree Styles */
 
 .session-tree-panel {
-  min-width: 260px;
+  min-width: 340px;
   border-right: 1px solid var(--color-border);
-  background-color: var(--color-surface);
+  background:
+    linear-gradient(180deg, rgba(59, 130, 246, 0.06), transparent 180px),
+    var(--color-surface);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -12,9 +14,9 @@
 }
 
 .session-tree-header {
-  padding: var(--space-3) var(--space-4);
+  padding: 14px 18px;
   border-bottom: 1px solid var(--color-border);
-  height: 57px;
+  height: 72px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -23,14 +25,25 @@
 }
 
 .session-tree-title {
-  font-size: 1.1rem;
-  font-weight: 600;
+  font-size: 1.05rem;
+  font-weight: 680;
   color: var(--color-text-primary);
   margin: 0;
 }
 
-.session-tree-subtitle {
-  font-size: 0.8rem;
+.session-tree-eyebrow {
+  margin: 3px 0 0;
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  color: var(--color-text-muted);
+}
+
+.session-tree-header-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  font-size: 0.7rem;
   color: var(--color-text-secondary);
 }
 
@@ -40,32 +53,103 @@
   flex-direction: column;
   overflow: hidden;
   position: relative;
-  height: calc(100% - 57px);
+  height: calc(100% - 72px);
 }
 
 /* Toolbar */
 .tree-toolbar {
-  padding: var(--space-2) var(--space-4);
+  padding: 12px 14px;
   border-bottom: 1px solid var(--color-border);
-  background-color: var(--color-surface);
+  background-color: rgba(15, 23, 42, 0.42);
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: var(--space-2);
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
   flex-shrink: 0;
+}
+
+.tree-inheritance-control {
+  display: grid;
+  grid-template-columns: minmax(90px, 1fr) auto;
+  gap: 8px 12px;
+  align-items: center;
+}
+
+.tree-inheritance-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tree-inheritance-title {
+  font-size: 0.77rem;
+  font-weight: 650;
+  color: var(--color-text-primary);
+}
+
+.tree-inheritance-summary {
+  font-size: 0.68rem;
+  color: var(--color-text-muted);
+}
+
+.tree-mode-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 3px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-bg);
+}
+
+.tree-mode-button {
+  border: 0;
+  border-radius: 7px;
+  padding: 6px 9px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 0.7rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tree-mode-button:hover {
+  color: var(--color-text-primary);
+}
+
+.tree-mode-button[aria-pressed='true'] {
+  background: var(--color-surface-hover);
+  color: var(--color-text-primary);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.24);
+}
+
+.tree-mode-button:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.tree-inheritance-help {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 0.68rem;
+  line-height: 1.4;
+  color: var(--color-text-muted);
 }
 
 .tree-toolbar-actions {
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  flex-wrap: wrap;
 }
 
 .tree-toolbar-views {
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  justify-content: space-between;
+  padding-top: 8px;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
 }
 
 .tree-toolbar-btn {
@@ -91,7 +175,9 @@
   height: 100%;
   position: relative;
   overflow: hidden;
-  background-color: var(--color-bg);
+  background:
+    radial-gradient(circle at 50% 20%, rgba(59, 130, 246, 0.08), transparent 42%),
+    var(--color-bg);
 }
 
 /* Compact circular topology node */
@@ -100,7 +186,7 @@
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  background-color: var(--color-surface);
+  background: linear-gradient(145deg, #26364d, var(--color-surface));
   border: 2px solid var(--color-border);
   display: flex;
   align-items: center;
@@ -108,7 +194,8 @@
   box-sizing: border-box;
   cursor: pointer;
   color: var(--color-text-secondary);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28);
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
   user-select: none;
 }
 
@@ -128,20 +215,13 @@
   z-index: 5;
 }
 
-.tree-node-circle.role-system {
-  background-color: var(--color-info-bg);
-}
-
-.tree-node-circle.role-user {
-  background-color: rgba(59, 130, 246, 0.14);
-}
-
-.tree-node-circle.role-assistant {
-  background-color: var(--color-success-bg);
-}
-
 .tree-node-circle.is-path:not(.is-current) {
   border-color: var(--color-primary);
+}
+
+.tree-node-circle.is-inherited:not(.is-current):not(.is-highlighted) {
+  border-color: var(--color-success);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.13), 0 4px 12px rgba(0, 0, 0, 0.28);
 }
 
 .tree-node-circle.is-current {
@@ -172,11 +252,12 @@
   left: 12px;
   right: 12px;
   bottom: 12px;
-  padding: 10px 12px;
+  padding: 12px 14px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background-color: var(--color-surface);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  background: rgba(30, 41, 59, 0.96);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(12px);
   color: var(--color-text-primary);
   pointer-events: none;
   user-select: text;
@@ -205,6 +286,37 @@
   font-size: 0.8rem;
   line-height: 1.45;
   white-space: pre-wrap;
+}
+
+.tree-node-tooltip-section {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: 8px;
+  align-items: start;
+}
+
+.tree-node-tooltip-section + .tree-node-tooltip-section {
+  margin-top: 9px;
+  padding-top: 9px;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.tree-node-tooltip-label {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(59, 130, 246, 0.16);
+  color: #93c5fd;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.tree-node-tooltip-label.is-answer {
+  background: rgba(16, 185, 129, 0.14);
+  color: #6ee7b7;
 }
 
 .tree-node-tooltip-model {

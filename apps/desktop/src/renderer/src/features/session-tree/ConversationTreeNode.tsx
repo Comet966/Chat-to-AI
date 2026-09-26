@@ -5,21 +5,13 @@ import type { ConversationTreeNodeData } from './mapping/to-flow-elements.js'
 export function ConversationTreeNode({
   data
 }: NodeProps<Node<ConversationTreeNodeData>>) {
-  const roleLabels: Record<string, string> = {
-    system: 'System',
-    user: 'User',
-    assistant: 'Assistant'
-  }
-
-  const roleName = roleLabels[data.role] ?? data.role
-
   const nodeClasses = [
     'tree-node-circle',
-    `role-${data.role}`,
     data.isCurrent ? 'is-current' : '',
     data.isPath ? 'is-path' : '',
     data.isSelected ? 'is-selected' : '',
-    data.isHighlighted ? 'is-highlighted' : ''
+    data.isHighlighted ? 'is-highlighted' : '',
+    data.isInherited ? 'is-inherited' : ''
   ]
     .filter(Boolean)
     .join(' ')
@@ -30,14 +22,15 @@ export function ConversationTreeNode({
       role="treeitem"
       tabIndex={0}
       aria-selected={data.isSelected}
-      aria-label={`${roleName} node ${data.sequence}: ${data.contentSnippet}`}
+      aria-label={`第 ${data.sequence + 1} 轮问答: ${data.questionSnippet}`}
       data-testid={`tree-node-${data.id}`}
       data-highlighted={data.isHighlighted ? 'true' : 'false'}
+      data-inherited={data.isInherited ? 'true' : 'false'}
     >
       <Handle type="target" position={Position.Top} isConnectable={false} className="tree-node-handle" />
 
       <span className="tree-node-sequence" aria-hidden="true">
-        {data.sequence}
+        {data.sequence + 1}
       </span>
 
       <Handle type="source" position={Position.Bottom} isConnectable={false} className="tree-node-handle" />

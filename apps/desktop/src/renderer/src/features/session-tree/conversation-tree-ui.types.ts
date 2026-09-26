@@ -1,4 +1,5 @@
 import type {
+  ConversationInheritanceMode,
   ConversationTreeNodeDto,
   ConversationTreeSnapshot
 } from '../../ports/conversation-tree-ui.port.js'
@@ -8,6 +9,8 @@ export interface ConversationTreeState {
   loading: boolean
   error: string | null
   selectedNodeIds: Set<string>
+  inheritanceMode: ConversationInheritanceMode
+  manualInheritanceNodeIds: Set<string>
   actionInProgress: boolean
   dialog:
     | { type: 'none' }
@@ -23,6 +26,8 @@ export type ConversationTreeAction =
   | { type: 'toggleSelect'; nodeId: string }
   | { type: 'setSelection'; nodeIds: string[] }
   | { type: 'clearSelection' }
+  | { type: 'setInheritanceMode'; mode: ConversationInheritanceMode }
+  | { type: 'toggleManualInheritance'; nodeId: string }
   | { type: 'openAddDialog'; parentNode: ConversationTreeNodeDto }
   | { type: 'openDeleteDialog'; nodesToDelete: ConversationTreeNodeDto[] }
   | { type: 'closeDialog' }

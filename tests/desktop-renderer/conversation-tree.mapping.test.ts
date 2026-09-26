@@ -8,6 +8,7 @@ import {
 import {
   toFlowElements
 } from '../../apps/desktop/src/renderer/src/features/session-tree/mapping/to-flow-elements.js'
+import { createConversationTreeEdgePath } from '../../apps/desktop/src/renderer/src/features/session-tree/conversation-tree-edge-path.js'
 import type { ConversationTreeSnapshot } from '../../apps/desktop/src/renderer/src/ports/conversation-tree-ui.port.js'
 
 describe('Tree Snapshot Validation and Flow Element Mapping', () => {
@@ -26,14 +27,37 @@ describe('Tree Snapshot Validation and Flow Element Mapping', () => {
         {
           id: 'root',
           parentId: null,
-          role: 'system',
-          content: 'Hello',
+          question: 'Hello?',
+          answer: 'Hello.',
           sequence: 0,
           createdAt: '2026-09-25T00:00:00Z'
         }
       ]
     }
     expect(validateTreeSnapshot(singleNodeTree).valid).toBe(true)
+  })
+
+  it('rejects a node that does not contain a complete question and answer turn', () => {
+    const incompleteTurn: ConversationTreeSnapshot = {
+      treeId: 'tree-incomplete-turn',
+      revision: 1,
+      rootId: 'root',
+      currentNodeId: 'root',
+      nodes: [
+        {
+          id: 'root',
+          parentId: null,
+          question: 'What is a complete turn?',
+          answer: '',
+          sequence: 0,
+          createdAt: '2026-09-25T00:00:00Z'
+        }
+      ]
+    }
+
+    const result = validateTreeSnapshot(incompleteTurn)
+    expect(result.valid).toBe(false)
+    if (!result.valid) expect(result.error.code).toBe('INVALID_TURN_CONTENT')
   })
 
   it('rejects duplicate node IDs', () => {
@@ -46,16 +70,16 @@ describe('Tree Snapshot Validation and Flow Element Mapping', () => {
         {
           id: 'root',
           parentId: null,
-          role: 'system',
-          content: 'Hello',
+          question: 'Hello?',
+          answer: 'Hello.',
           sequence: 0,
           createdAt: '2026-09-25T00:00:00Z'
         },
         {
           id: 'root', // duplicate!
           parentId: 'root',
-          role: 'user',
-          content: 'Dup',
+          question: 'Dup?',
+          answer: 'Dup.',
           sequence: 1,
           createdAt: '2026-09-25T00:01:00Z'
         }
@@ -78,16 +102,16 @@ describe('Tree Snapshot Validation and Flow Element Mapping', () => {
         {
           id: 'root1',
           parentId: null,
-          role: 'system',
-          content: 'Root 1',
+          question: 'Root 1?',
+          answer: 'Root 1.',
           sequence: 0,
           createdAt: '2026-09-25T00:00:00Z'
         },
         {
           id: 'root2',
           parentId: null, // multiple roots!
-          role: 'system',
-          content: 'Root 2',
+          question: 'Root 2?',
+          answer: 'Root 2.',
           sequence: 1,
           createdAt: '2026-09-25T00:01:00Z'
         }
@@ -110,8 +134,8 @@ describe('Tree Snapshot Validation and Flow Element Mapping', () => {
         {
           id: 'actual-root',
           parentId: null,
-          role: 'system',
-          content: 'Root',
+          question: 'Root?',
+          answer: 'Root.',
           sequence: 0,
           createdAt: '2026-09-25T00:00:00Z'
         }
@@ -134,16 +158,16 @@ describe('Tree Snapshot Validation and Flow Element Mapping', () => {
         {
           id: 'root',
           parentId: null,
-          role: 'system',
-          content: 'Root',
+          question: 'Root?',
+          answer: 'Root.',
           sequence: 0,
           createdAt: '2026-09-25T00:00:00Z'
         },
         {
           id: 'node-orphan',
           parentId: 'non-existent-parent',
-          role: 'user',
-          content: 'Orphan',
+          question: 'Orphan?',
+          answer: 'Orphan.',
           sequence: 1,
           createdAt: '2026-09-25T00:01:00Z'
         }
@@ -166,16 +190,16 @@ describe('Tree Snapshot Validation and Flow Element Mapping', () => {
         {
           id: 'root',
           parentId: null,
-          role: 'system',
-          content: 'Root',
+          question: 'Root?',
+          answer: 'Root.',
           sequence: 0,
           createdAt: '2026-09-25T00:00:00Z'
         },
         {
           id: 'node-self',
           parentId: 'node-self',
-          role: 'user',
-          content: 'Self',
+          question: 'Self?',
+          answer: 'Self.',
           sequence: 1,
           createdAt: '2026-09-25T00:01:00Z'
         }
@@ -198,24 +222,24 @@ describe('Tree Snapshot Validation and Flow Element Mapping', () => {
         {
           id: 'root',
           parentId: null,
-          role: 'system',
-          content: 'Root',
+          question: 'Root?',
+          answer: 'Root.',
           sequence: 0,
           createdAt: '2026-09-25T00:00:00Z'
         },
         {
           id: 'node-a',
           parentId: 'node-b',
-          role: 'user',
-          content: 'A',
+          question: 'A?',
+          answer: 'A.',
           sequence: 1,
           createdAt: '2026-09-25T00:01:00Z'
         },
         {
           id: 'node-b',
           parentId: 'node-a',
-          role: 'assistant',
-          content: 'B',
+          question: 'B?',
+          answer: 'B.',
           sequence: 2,
           createdAt: '2026-09-25T00:02:00Z'
         }
@@ -258,6 +282,7 @@ describe('Tree Snapshot Validation and Flow Element Mapping', () => {
     expect(branch2Node?.data.isCurrent).toBe(false)
     expect(branch2Node?.data.isPath).toBe(false)
     expect(branch2Node?.data.isHighlighted).toBe(true)
+    expect(branch2Node?.data.isInherited).toBe(false)
 
     // Edges
     const activeEdge = flowElements.edges.find((e) => e.id === 'edge-node-u2-node-a2-b1')
@@ -265,5 +290,33 @@ describe('Tree Snapshot Validation and Flow Element Mapping', () => {
 
     const inactiveEdge = flowElements.edges.find((e) => e.id === 'edge-node-u2-node-a2-b2')
     expect(inactiveEdge?.className).toBe('edge-default')
+    expect(inactiveEdge?.type).toBe('conversationBezier')
+  })
+
+  it('maps manual inheritance independently from the active path', () => {
+    const flowElements = toFlowElements(
+      DEFAULT_DEMO_TREE_SNAPSHOT,
+      new Set(),
+      new Set(),
+      new Set(['node-u1', 'node-a2-b2'])
+    )
+
+    expect(flowElements.nodes.find((node) => node.id === 'node-u1')?.data.isInherited).toBe(true)
+    expect(flowElements.nodes.find((node) => node.id === 'node-a2-b2')?.data.isInherited).toBe(true)
+    expect(flowElements.nodes.find((node) => node.id === 'node-a2-b1')?.data.isInherited).toBe(false)
+  })
+
+  it('keeps vertically aligned connections visibly curved', () => {
+    const path = createConversationTreeEdgePath({
+      id: 'edge-root-child',
+      sourceX: 100,
+      sourceY: 20,
+      targetX: 100,
+      targetY: 140
+    })
+
+    expect(path).toContain('C ')
+    expect(path).not.toContain('C 100,')
+    expect(path.endsWith('100,140')).toBe(true)
   })
 })

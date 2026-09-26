@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { SessionTreePanel } from '../../apps/desktop/src/renderer/src/features/session-tree/SessionTreePanel.js'
@@ -9,11 +9,13 @@ import { InMemoryProviderSettingsAdapter } from '../../apps/desktop/src/renderer
 import { DemoChatUiAdapter } from '../../apps/desktop/src/renderer/src/adapters/demo-chat-ui.adapter.js'
 import { PortsProvider } from '../../apps/desktop/src/renderer/src/ports/ports.context.js'
 import type { ConversationTreeSnapshot } from '../../apps/desktop/src/renderer/src/ports/conversation-tree-ui.port.js'
+import type { ConversationInheritanceSelection } from '../../apps/desktop/src/renderer/src/ports/conversation-tree-ui.port.js'
 
 describe('SessionTreePanel Interactive Component', () => {
   const renderPanel = (
     customTreeAdapter?: DemoConversationTreeUiAdapter,
-    highlightedNodeIds: readonly string[] = []
+    highlightedNodeIds: readonly string[] = [],
+    onInheritanceSelectionChange?: (selection: ConversationInheritanceSelection) => void
   ) => {
     const conversationTree = customTreeAdapter ?? new DemoConversationTreeUiAdapter()
     const ports = {
@@ -26,7 +28,10 @@ describe('SessionTreePanel Interactive Component', () => {
       ports,
       ...render(
         <PortsProvider ports={ports}>
-          <SessionTreePanel highlightedNodeIds={highlightedNodeIds} />
+          <SessionTreePanel
+            highlightedNodeIds={highlightedNodeIds}
+            onInheritanceSelectionChange={onInheritanceSelectionChange}
+          />
         </PortsProvider>
       )
     }
@@ -35,10 +40,11 @@ describe('SessionTreePanel Interactive Component', () => {
   it('renders tree canvas with default nodes and current node indicators', async () => {
     renderPanel()
 
-    expect(screen.getByRole('heading', { name: '会话树' })).toBeDefined()
+    expect(screen.getByRole('heading', { name: '会话脉络' })).toBeDefined()
 
-    // Header displays current node status (default is #4 assistant)
-    expect(await screen.findByText(/当前: #4 \(assistant\)/i)).toBeDefined()
+    expect(await screen.findByText('当前 · 5')).toBeDefined()
+    expect(screen.getByRole('button', { name: '根路径继承' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByText('已包含 5 轮')).toBeDefined()
 
     // Toolbar buttons rendered
     const setCurrentBtn = screen.getByRole('button', { name: '设为当前节点' })
@@ -63,7 +69,8 @@ describe('SessionTreePanel Interactive Component', () => {
     expect(screen.queryByRole('tooltip')).toBeNull()
     fireEvent.mouseEnter(screen.getByTestId('tree-node-node-root'))
     expect(screen.getByRole('tooltip')).toBeDefined()
-    expect(screen.getByText(/You are an intelligent AI conversational assistant/i)).toBeDefined()
+    expect(screen.getByText(/什么是多轮会话树/)).toBeDefined()
+    expect(screen.getByText(/树形结构保存每一轮问答/)).toBeDefined()
     fireEvent.mouseLeave(screen.getByTestId('tree-node-node-root'))
     expect(screen.queryByRole('tooltip')).toBeNull()
   })
@@ -79,11 +86,36 @@ describe('SessionTreePanel Interactive Component', () => {
     expect(notHighlighted.getAttribute('data-highlighted')).toBe('false')
   })
 
+  it('switches between root-path and manual inheritance and emits ordered node IDs', async () => {
+    const user = userEvent.setup()
+    const onInheritanceSelectionChange = vi.fn()
+    renderPanel(undefined, [], onInheritanceSelectionChange)
+
+    await screen.findByText('已包含 5 轮')
+    expect(onInheritanceSelectionChange).toHaveBeenLastCalledWith({
+      mode: 'root-path',
+      nodeIds: ['node-root', 'node-u1', 'node-a1', 'node-u2', 'node-a2-b1']
+    })
+
+    await user.click(screen.getByRole('button', { name: '自由选择' }))
+    expect(screen.getByText('已包含 0 轮')).toBeDefined()
+
+    fireEvent.click(screen.getByTestId('tree-node-node-u1'))
+    fireEvent.click(screen.getByTestId('tree-node-node-a2-b2'))
+
+    expect(screen.getByText('已包含 2 轮')).toBeDefined()
+    expect(screen.getByTestId('tree-node-node-u1').classList.contains('is-inherited')).toBe(true)
+    expect(onInheritanceSelectionChange).toHaveBeenLastCalledWith({
+      mode: 'manual',
+      nodeIds: ['node-u1', 'node-a2-b2']
+    })
+  })
+
   it('enables action buttons when selecting an eligible non-root node', async () => {
     const user = userEvent.setup()
     renderPanel()
 
-    await screen.findByText(/当前: #4 \(assistant\)/i)
+    await screen.findByText('当前 · 5')
 
     const u1Node = screen.getByTestId('tree-node-node-u1')
     fireEvent.click(u1Node)
@@ -104,7 +136,7 @@ describe('SessionTreePanel Interactive Component', () => {
     const user = userEvent.setup()
     renderPanel()
 
-    await screen.findByText(/当前: #4 \(assistant\)/i)
+    await screen.findByText('当前 · 5')
 
     const rootNode = screen.getByTestId('tree-node-node-root')
     fireEvent.click(rootNode)
@@ -125,7 +157,7 @@ describe('SessionTreePanel Interactive Component', () => {
     const user = userEvent.setup()
     renderPanel()
 
-    await screen.findByText(/当前: #4 \(assistant\)/i)
+    await screen.findByText('当前 · 5')
 
     // node-a2-b1 is the current active node
     const currentActive = await screen.findByTestId('tree-node-node-a2-b1')
@@ -139,7 +171,7 @@ describe('SessionTreePanel Interactive Component', () => {
     const user = userEvent.setup()
     const { ports } = renderPanel()
 
-    await screen.findByText(/当前: #4 \(assistant\)/i)
+    await screen.findByText('当前 · 5')
 
     // Select node-u1 (#1)
     fireEvent.click(screen.getByTestId('tree-node-node-u1'))
@@ -149,7 +181,7 @@ describe('SessionTreePanel Interactive Component', () => {
     await user.click(setCurrentBtn)
 
     // Header reflects updated current node
-    expect(await screen.findByText(/当前: #1 \(user\)/i)).toBeDefined()
+    expect(await screen.findByText('当前 · 2')).toBeDefined()
 
     const snap = (await ports.conversationTree.getSnapshot()).value!
     expect(snap.currentNodeId).toBe('node-u1')
@@ -159,7 +191,7 @@ describe('SessionTreePanel Interactive Component', () => {
     const user = userEvent.setup()
     const { ports } = renderPanel()
 
-    await screen.findByText(/当前: #4 \(assistant\)/i)
+    await screen.findByText('当前 · 5')
 
     // Select node-a2-b2 (#5)
     fireEvent.click(screen.getByTestId('tree-node-node-a2-b2'))
@@ -169,11 +201,11 @@ describe('SessionTreePanel Interactive Component', () => {
 
     // Dialog appears
     expect(await screen.findByRole('dialog', { name: '新增子节点' })).toBeDefined()
-    expect(screen.getByText(/父节点: #5 \(assistant\)/i)).toBeDefined()
+    expect(screen.getByText(/父节点: 第 6 轮/)).toBeDefined()
 
     // Type content
-    const textarea = screen.getByPlaceholderText(/输入该节点的消息内容/i)
-    await user.type(textarea, 'Brand new branch query from test!')
+    await user.type(screen.getByPlaceholderText(/输入用户问题/i), 'Brand new branch query from test!')
+    await user.type(screen.getByPlaceholderText(/输入助手回答/i), 'Brand new branch answer from test!')
 
     // Submit form
     await user.click(screen.getByRole('button', { name: '确认添加' }))
@@ -185,7 +217,7 @@ describe('SessionTreePanel Interactive Component', () => {
 
     // New node exists in tree snapshot
     const snap = (await ports.conversationTree.getSnapshot()).value!
-    const created = snap.nodes.find((n) => n.content === 'Brand new branch query from test!')
+    const created = snap.nodes.find((n) => n.question === 'Brand new branch query from test!')
     expect(created).toBeDefined()
     expect(created?.parentId).toBe('node-a2-b2')
     expect(snap.currentNodeId).toBe(created?.id)
@@ -195,7 +227,7 @@ describe('SessionTreePanel Interactive Component', () => {
     const user = userEvent.setup()
     const { ports } = renderPanel()
 
-    await screen.findByText(/当前: #4 \(assistant\)/i)
+    await screen.findByText('当前 · 5')
 
     // Select leaf node node-a2-b2
     fireEvent.click(screen.getByTestId('tree-node-node-a2-b2'))
@@ -232,16 +264,16 @@ describe('SessionTreePanel Interactive Component', () => {
         {
           id: 'root-1',
           parentId: null,
-          role: 'system',
-          content: 'Root 1',
+          question: 'Root 1?',
+          answer: 'Root 1.',
           sequence: 0,
           createdAt: '2026-09-25T00:00:00Z'
         },
         {
           id: 'root-2',
           parentId: null,
-          role: 'system',
-          content: 'Root 2',
+          question: 'Root 2?',
+          answer: 'Root 2.',
           sequence: 1,
           createdAt: '2026-09-25T00:00:00Z'
         }
@@ -275,7 +307,7 @@ describe('SessionTreePanel Interactive Component', () => {
     const user = userEvent.setup()
     const { ports } = renderPanel()
 
-    await screen.findByText(/当前: #4 \(assistant\)/i)
+    await screen.findByText('当前 · 5')
     fireEvent.click(screen.getByTestId('tree-node-node-a2-b2'))
     await user.click(screen.getByRole('button', { name: '新增子节点或分支' }))
     expect(await screen.findByRole('dialog', { name: '新增子节点' })).toBeDefined()

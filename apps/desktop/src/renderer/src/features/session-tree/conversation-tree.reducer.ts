@@ -8,6 +8,8 @@ export const initialConversationTreeState: ConversationTreeState = {
   loading: true,
   error: null,
   selectedNodeIds: new Set<string>(),
+  inheritanceMode: 'root-path',
+  manualInheritanceNodeIds: new Set<string>(),
   actionInProgress: false,
   dialog: { type: 'none' }
 }
@@ -28,10 +30,14 @@ export function conversationTreeReducer(
       // Retain selections that still exist in the new snapshot
       const existingIds = new Set(action.snapshot.nodes.map((n) => n.id))
       const nextSelection = new Set<string>()
+      const nextManualInheritance = new Set<string>()
       for (const id of state.selectedNodeIds) {
         if (existingIds.has(id)) {
           nextSelection.add(id)
         }
+      }
+      for (const id of state.manualInheritanceNodeIds) {
+        if (existingIds.has(id)) nextManualInheritance.add(id)
       }
 
       return {
@@ -39,7 +45,8 @@ export function conversationTreeReducer(
         snapshot: action.snapshot,
         loading: false,
         error: null,
-        selectedNodeIds: nextSelection
+        selectedNodeIds: nextSelection,
+        manualInheritanceNodeIds: nextManualInheritance
       }
     }
 
@@ -80,6 +87,22 @@ export function conversationTreeReducer(
         ...state,
         selectedNodeIds: new Set<string>()
       }
+
+    case 'setInheritanceMode':
+      return {
+        ...state,
+        inheritanceMode: action.mode
+      }
+
+    case 'toggleManualInheritance': {
+      const next = new Set(state.manualInheritanceNodeIds)
+      if (next.has(action.nodeId)) next.delete(action.nodeId)
+      else next.add(action.nodeId)
+      return {
+        ...state,
+        manualInheritanceNodeIds: next
+      }
+    }
 
     case 'openAddDialog':
       return {

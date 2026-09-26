@@ -101,7 +101,7 @@
 /* Chat Workspace (Split Layout) */
 .chat-workspace {
   display: grid;
-  grid-template-columns: minmax(260px, 1fr) minmax(420px, 1fr);
+  grid-template-columns: minmax(340px, 0.9fr) minmax(480px, 1.4fr);
   height: 100%;
   width: 100%;
   min-width: 0;

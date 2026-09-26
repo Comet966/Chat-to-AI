@@ -4,7 +4,6 @@ import { Field } from '../../components/Field.js'
 import { StatusNotice } from '../../components/StatusNotice.js'
 import type {
   ConversationTreeDeleteMode,
-  ConversationNodeRole,
   ConversationTreeNodeDto,
   ConversationTreeSnapshot
 } from '../../ports/conversation-tree-ui.port.js'
@@ -13,7 +12,7 @@ import { getConversationTreeDeletePreview } from './mapping/delete-preview.js'
 export interface AddDialogProps {
   type: 'add'
   parentNode: ConversationTreeNodeDto
-  onConfirm: (role: ConversationNodeRole, content: string) => Promise<void>
+  onConfirm: (question: string, answer: string) => Promise<void>
   onCancel: () => void
   isSubmitting: boolean
 }
@@ -42,20 +41,18 @@ function AddNodeModal({
   onCancel,
   isSubmitting
 }: AddDialogProps) {
-  const defaultRole: ConversationNodeRole =
-    parentNode.role === 'user' ? 'assistant' : 'user'
-  const [role, setRole] = useState<ConversationNodeRole>(defaultRole)
-  const [content, setContent] = useState('')
+  const [question, setQuestion] = useState('')
+  const [answer, setAnswer] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!content.trim()) {
-      setError('内容不能为空')
+    if (!question.trim() || !answer.trim()) {
+      setError('问题和回答都不能为空')
       return
     }
     setError(null)
-    await onConfirm(role, content.trim())
+    await onConfirm(question.trim(), answer.trim())
   }
 
   return (
@@ -63,9 +60,8 @@ function AddNodeModal({
       <div className="tree-modal-card">
         <h3 className="tree-modal-title">新增子节点 / 分支</h3>
         <p className="tree-modal-subtitle">
-          父节点: #{parentNode.sequence} ({parentNode.role}):{' '}
-          {parentNode.content.slice(0, 50)}
-          {parentNode.content.length > 50 ? '...' : ''}
+          父节点: 第 {parentNode.sequence + 1} 轮 · {parentNode.question.slice(0, 50)}
+          {parentNode.question.length > 50 ? '...' : ''}
         </p>
 
         <StatusNotice
@@ -74,31 +70,32 @@ function AddNodeModal({
         />
 
         <form onSubmit={handleSubmit} noValidate>
-          <Field label="角色 (Role)" htmlFor="node-role">
-            <select
-              id="node-role"
-              className="field-select"
-              value={role}
-              onChange={(e) => setRole(e.target.value as ConversationNodeRole)}
-            >
-              <option value="user">User</option>
-              <option value="assistant">Assistant</option>
-              <option value="system">System</option>
-            </select>
-          </Field>
-
-          <Field label="节点内容" htmlFor="node-content" error={error ?? undefined}>
+          <Field label="本轮问题" htmlFor="node-question" error={error ?? undefined}>
             <textarea
-              id="node-content"
+              id="node-question"
               className="field-textarea tree-modal-textarea"
-              rows={4}
-              placeholder="输入该节点的消息内容..."
-              value={content}
+              rows={3}
+              placeholder="输入用户问题..."
+              value={question}
               onChange={(e) => {
-                setContent(e.target.value)
+                setQuestion(e.target.value)
                 if (error) setError(null)
               }}
               autoFocus
+            />
+          </Field>
+
+          <Field label="本轮回答" htmlFor="node-answer">
+            <textarea
+              id="node-answer"
+              className="field-textarea tree-modal-textarea"
+              rows={4}
+              placeholder="输入助手回答..."
+              value={answer}
+              onChange={(e) => {
+                setAnswer(e.target.value)
+                if (error) setError(null)
+              }}
             />
           </Field>
 
@@ -114,7 +111,7 @@ function AddNodeModal({
             <Button
               type="submit"
               variant="primary"
-              disabled={isSubmitting || !content.trim()}
+              disabled={isSubmitting || !question.trim() || !answer.trim()}
             >
               {isSubmitting ? '添加中...' : '确认添加'}
             </Button>
@@ -187,8 +184,8 @@ function DeleteNodeModal({
             <div key={node.id} className="tree-modal-delete-item">
               <span className="tree-node-role-badge">#{node.sequence}</span>
               <span className="tree-modal-delete-text">
-                {node.content.slice(0, 60)}
-                {node.content.length > 60 ? '...' : ''}
+                {node.question.slice(0, 60)}
+                {node.question.length > 60 ? '...' : ''}
               </span>
             </div>
           ))}

@@ -11,6 +11,7 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { ConversationTreeNode } from './ConversationTreeNode.js'
+import { ConversationTreeEdge } from './ConversationTreeEdge.js'
 import type { ConversationTreeNodeData } from './mapping/to-flow-elements.js'
 
 type ConversationFlowNode = Node<ConversationTreeNodeData>
@@ -31,6 +32,10 @@ export interface ConversationTreeCanvasProps {
 
 const nodeTypes = {
   conversationNode: ConversationTreeNode
+}
+
+const edgeTypes = {
+  conversationBezier: ConversationTreeEdge
 }
 
 export const ConversationTreeCanvas = React.forwardRef<
@@ -146,6 +151,7 @@ const InnerCanvas = React.forwardRef<ConversationTreeCanvasHandle, InnerCanvasPr
           nodes={nodes}
           edges={edges}
           nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
           onNodeClick={handleNodeClick}
           onNodeMouseEnter={handleNodeMouseEnter}
           onNodeMouseLeave={handleNodeMouseLeave}
@@ -167,12 +173,17 @@ const InnerCanvas = React.forwardRef<ConversationTreeCanvasHandle, InnerCanvasPr
         {hoveredNode && (
           <div className="tree-node-tooltip" role="tooltip">
             <div className="tree-node-tooltip-header">
-              <span>
-                {hoveredNode.data.role} · #{hoveredNode.data.sequence}
-              </span>
+              <span>第 {hoveredNode.data.sequence + 1} 轮问答</span>
               {hoveredNode.data.isCurrent && <span>当前节点</span>}
             </div>
-            <p className="tree-node-tooltip-content">{hoveredNode.data.content}</p>
+            <div className="tree-node-tooltip-section">
+              <span className="tree-node-tooltip-label">问</span>
+              <p className="tree-node-tooltip-content">{hoveredNode.data.question}</p>
+            </div>
+            <div className="tree-node-tooltip-section">
+              <span className="tree-node-tooltip-label is-answer">答</span>
+              <p className="tree-node-tooltip-content">{hoveredNode.data.answer}</p>
+            </div>
             {hoveredNode.data.providerInfo && (
               <p className="tree-node-tooltip-model">
                 {hoveredNode.data.providerInfo.provider} / {hoveredNode.data.providerInfo.modelId}

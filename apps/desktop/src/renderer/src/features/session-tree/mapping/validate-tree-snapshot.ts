@@ -28,6 +28,21 @@ export function validateTreeSnapshot(snapshot: ConversationTreeSnapshot): TreeVa
         error: { code: 'MISSING_NODE_ID', message: 'Node is missing an id.' }
       }
     }
+    if (
+      typeof node.question !== 'string' ||
+      node.question.trim() === '' ||
+      typeof node.answer !== 'string' ||
+      node.answer.trim() === ''
+    ) {
+      return {
+        valid: false,
+        error: {
+          code: 'INVALID_TURN_CONTENT',
+          message: `Node "${node.id}" must contain a non-empty question and answer.`,
+          nodeId: node.id
+        }
+      }
+    }
     if (idSet.has(node.id)) {
       return {
         valid: false,

@@ -4,7 +4,8 @@ import { StatusNotice } from '../../components/StatusNotice.js'
 import { usePorts } from '../../ports/ports.context.js'
 import { DemoConversationTreeUiAdapter } from '../../adapters/demo-conversation-tree-ui.adapter.js'
 import type {
-  ConversationNodeRole,
+  ConversationInheritanceMode,
+  ConversationInheritanceSelection,
   ConversationTreeDeleteMode
 } from '../../ports/conversation-tree-ui.port.js'
 import { ConversationTreeCanvas, type ConversationTreeCanvasHandle } from './ConversationTreeCanvas.js'
@@ -24,9 +25,14 @@ export interface SessionTreePanelProps {
    * results, generated nodes, or other transient UI state without mutating the tree.
    */
   highlightedNodeIds?: readonly string[]
+  /** Emits the ordered turns that should be sent as context with the next request. */
+  onInheritanceSelectionChange?: (selection: ConversationInheritanceSelection) => void
 }
 
-export function SessionTreePanel({ highlightedNodeIds = [] }: SessionTreePanelProps) {
+export function SessionTreePanel({
+  highlightedNodeIds = [],
+  onInheritanceSelectionChange
+}: SessionTreePanelProps) {
   const ports = usePorts()
   const port = useMemo(
     () => ports.conversationTree ?? new DemoConversationTreeUiAdapter(),
@@ -73,18 +79,47 @@ export function SessionTreePanel({ highlightedNodeIds = [] }: SessionTreePanelPr
   }, [state.snapshot])
 
   // 3. Map to Flow elements and calculate layout
-  const { layoutNodes, layoutEdges } = useMemo(() => {
+  const { layoutNodes, layoutEdges, inheritedNodeIds } = useMemo(() => {
     if (!state.snapshot || !validation?.valid) {
-      return { layoutNodes: [], layoutEdges: [] }
+      return { layoutNodes: [], layoutEdges: [], inheritedNodeIds: new Set<string>() }
     }
-    const { nodes, edges } = toFlowElements(
+    const manualInheritance =
+      state.inheritanceMode === 'manual' ? state.manualInheritanceNodeIds : undefined
+    const { nodes, edges, activePathNodeIds } = toFlowElements(
       state.snapshot,
       state.selectedNodeIds,
-      highlightedNodeIdSet
+      highlightedNodeIdSet,
+      manualInheritance
     )
     const layoutResult = dagreTreeLayout(nodes, edges)
-    return { layoutNodes: layoutResult.nodes, layoutEdges: layoutResult.edges }
-  }, [state.snapshot, validation, state.selectedNodeIds, highlightedNodeIdSet])
+    return {
+      layoutNodes: layoutResult.nodes,
+      layoutEdges: layoutResult.edges,
+      inheritedNodeIds: manualInheritance ?? activePathNodeIds
+    }
+  }, [
+    state.snapshot,
+    validation,
+    state.selectedNodeIds,
+    state.inheritanceMode,
+    state.manualInheritanceNodeIds,
+    highlightedNodeIdSet
+  ])
+
+  const orderedInheritedNodeIds = useMemo(() => {
+    if (!state.snapshot) return []
+    return state.snapshot.nodes
+      .filter((node) => inheritedNodeIds.has(node.id))
+      .sort((a, b) => a.sequence - b.sequence)
+      .map((node) => node.id)
+  }, [state.snapshot, inheritedNodeIds])
+
+  useEffect(() => {
+    onInheritanceSelectionChange?.({
+      mode: state.inheritanceMode,
+      nodeIds: orderedInheritedNodeIds
+    })
+  }, [onInheritanceSelectionChange, orderedInheritedNodeIds, state.inheritanceMode])
 
   // Current node dto
   const currentNode = useMemo(() => {
@@ -111,14 +146,17 @@ export function SessionTreePanel({ highlightedNodeIds = [] }: SessionTreePanelPr
   const canDelete = deletableSelectedNodes.length > 0
 
   // Canvas callbacks
-  const handleNodeClick = useCallback((nodeId: string, isMulti: boolean) => {
-    setActionError(null)
-    if (isMulti) {
-      dispatch({ type: 'toggleSelect', nodeId })
-    } else {
-      dispatch({ type: 'selectSingle', nodeId })
-    }
-  }, [])
+  const handleNodeClick = useCallback(
+    (nodeId: string, isMulti: boolean) => {
+      setActionError(null)
+      if (state.inheritanceMode === 'manual') {
+        dispatch({ type: 'toggleManualInheritance', nodeId })
+      }
+      if (isMulti) dispatch({ type: 'toggleSelect', nodeId })
+      else dispatch({ type: 'selectSingle', nodeId })
+    },
+    [state.inheritanceMode]
+  )
 
   const handlePaneClick = useCallback(() => {
     dispatch({ type: 'clearSelection' })
@@ -162,16 +200,20 @@ export function SessionTreePanel({ highlightedNodeIds = [] }: SessionTreePanelPr
     }
   }, [state.snapshot?.currentNodeId])
 
+  const handleInheritanceModeChange = useCallback((mode: ConversationInheritanceMode) => {
+    dispatch({ type: 'setInheritanceMode', mode })
+  }, [])
+
   // Dialog actions
   const handleConfirmAdd = useCallback(
-    async (role: ConversationNodeRole, content: string) => {
+    async (question: string, answer: string) => {
       if (state.dialog.type !== 'add') return
       setActionError(null)
       dispatch({ type: 'actionStart' })
       const res = await port.addChildNode({
         parentId: state.dialog.parentNode.id,
-        role,
-        content
+        question,
+        answer
       })
       dispatch({ type: 'actionEnd' })
       if (res.ok) {
@@ -235,12 +277,14 @@ export function SessionTreePanel({ highlightedNodeIds = [] }: SessionTreePanelPr
   return (
     <aside className="session-tree-panel" aria-label="会话树">
       <div className="session-tree-header">
-        <h2 className="session-tree-title">会话树</h2>
-        {currentNode && (
-          <span className="session-tree-subtitle">
-            当前: #{currentNode.sequence} ({currentNode.role})
-          </span>
-        )}
+        <div>
+          <h2 className="session-tree-title">会话脉络</h2>
+          <p className="session-tree-eyebrow">CONVERSATION MAP</p>
+        </div>
+        <div className="session-tree-header-meta">
+          {state.snapshot && <span>{state.snapshot.nodes.length} 轮</span>}
+          {currentNode && <span>当前 · {currentNode.sequence + 1}</span>}
+        </div>
       </div>
 
       <div className="session-tree-content">
@@ -284,6 +328,8 @@ export function SessionTreePanel({ highlightedNodeIds = [] }: SessionTreePanelPr
           <>
             <ConversationTreeToolbar
               selectedCount={state.selectedNodeIds.size}
+              inheritanceMode={state.inheritanceMode}
+              inheritedCount={orderedInheritedNodeIds.length}
               protectedRootSelected={protectedRootSelected}
               canSetCurrent={canSetCurrent}
               canAddChild={canAddChild}
@@ -294,6 +340,7 @@ export function SessionTreePanel({ highlightedNodeIds = [] }: SessionTreePanelPr
               onDelete={handleOpenDelete}
               onFitView={handleFitView}
               onFocusCurrent={handleFocusCurrent}
+              onInheritanceModeChange={handleInheritanceModeChange}
             />
 
             {actionError && (

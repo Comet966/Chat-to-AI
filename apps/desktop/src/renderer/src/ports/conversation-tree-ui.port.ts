@@ -1,5 +1,3 @@
-export type ConversationNodeRole = 'system' | 'user' | 'assistant'
-
 export interface ConversationNodeProviderInfo {
   provider: string
   modelId: string
@@ -8,8 +6,10 @@ export interface ConversationNodeProviderInfo {
 export interface ConversationTreeNodeDto {
   id: string
   parentId: string | null
-  role: ConversationNodeRole
-  content: string
+  /** User input for this complete conversation turn. */
+  question: string
+  /** Assistant output for this complete conversation turn. */
+  answer: string
   sequence: number
   createdAt: string
   providerInfo?: ConversationNodeProviderInfo
@@ -43,9 +43,17 @@ export type ConversationTreeResult<T> =
 
 export interface AddChildNodeInput {
   parentId: string
-  role: ConversationNodeRole
-  content: string
+  question: string
+  answer: string
   providerInfo?: ConversationNodeProviderInfo
+}
+
+export type ConversationInheritanceMode = 'root-path' | 'manual'
+
+export interface ConversationInheritanceSelection {
+  mode: ConversationInheritanceMode
+  /** Ordered conversation-turn IDs to include in the next model context. */
+  nodeIds: readonly string[]
 }
 
 export type ConversationTreeDeleteMode = 'leaf-only' | 'subtree'

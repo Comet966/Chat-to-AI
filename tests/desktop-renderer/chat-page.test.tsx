@@ -37,7 +37,7 @@ describe('ChatPage', () => {
     // Verify session tree panel
     const sessionTreePanel = screen.getByRole('complementary', { name: '会话树' })
     expect(sessionTreePanel).toBeDefined()
-    expect(screen.getByRole('heading', { name: '会话树' })).toBeDefined()
+    expect(screen.getByRole('heading', { name: '会话脉络' })).toBeDefined()
 
     // Verify session tree toolbar is rendered
     expect(await screen.findByRole('toolbar', { name: '会话树操作栏' })).toBeDefined()
