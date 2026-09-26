@@ -4,9 +4,11 @@ import { DemoConversationTreeUiAdapter } from './adapters/demo-conversation-tree
 import { InMemoryProviderSettingsAdapter } from './adapters/in-memory-provider-settings.adapter.js'
 import { ElectronChatUiAdapter } from './adapters/electron-chat-ui.adapter.js'
 import { ElectronConversationTreeUiAdapter } from './adapters/electron-conversation-tree-ui.adapter.js'
+import { ElectronProviderSettingsAdapter } from './adapters/electron-provider-settings.adapter.js'
 import {
   UnavailableChatUiAdapter,
-  UnavailableConversationTreeUiAdapter
+  UnavailableConversationTreeUiAdapter,
+  UnavailableProviderSettingsAdapter
 } from './adapters/unavailable-ui.adapters.js'
 import type { AppPorts } from './ports/ports.context.js'
 import { PortsProvider } from './ports/ports.context.js'
@@ -20,7 +22,7 @@ export function App({ customPorts }: AppProps) {
   const ports = useMemo<AppPorts>(() => {
     if (!customPorts && window.desktopApi) {
       return {
-        providerSettings: new InMemoryProviderSettingsAdapter(),
+        providerSettings: new ElectronProviderSettingsAdapter(window.desktopApi.provider),
         chatUi: new ElectronChatUiAdapter(window.desktopApi.conversation),
         conversationTree: new ElectronConversationTreeUiAdapter(window.desktopApi.conversation),
         runtimeMode: 'real'
@@ -28,7 +30,7 @@ export function App({ customPorts }: AppProps) {
     }
     if (!customPorts) {
       return {
-        providerSettings: new InMemoryProviderSettingsAdapter(),
+        providerSettings: new UnavailableProviderSettingsAdapter(),
         chatUi: new UnavailableChatUiAdapter(),
         conversationTree: new UnavailableConversationTreeUiAdapter(),
         runtimeMode: 'unavailable'

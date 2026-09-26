@@ -12,6 +12,8 @@ import {
   MutableConversationModelProvider
 } from './conversation/desktop-conversation.service.js'
 import { registerConversationTransport } from './conversation/conversation.transport.js'
+import { ProviderRuntimeService } from './provider/provider-runtime.service.js'
+import { registerProviderTransport } from './provider/provider.transport.js'
 import { registerElectronChatTransport } from './electron-transport.js'
 import { NavigationPolicy } from './security/navigation-policy.js'
 import {
@@ -27,6 +29,7 @@ export class ElectronHost {
   private unregisterShellTransport: (() => void) | null = null
   private unregisterChatTransport: (() => void) | null = null
   private unregisterConversationTransport: (() => void) | null = null
+  private unregisterProviderTransport: (() => void) | null = null
   private conversationModelProvider: MutableConversationModelProvider | null = null
   private navigationPolicy: NavigationPolicy | null = null
 
@@ -50,18 +53,17 @@ export class ElectronHost {
       new InMemoryConversationCursorStore()
     )
     this.conversationModelProvider = new MutableConversationModelProvider()
+    let initialProviderConfig: AppConfig['providerConfig'] | undefined
     try {
-      const config = loadAppConfig()
-      const kernel = new ChatKernel(createModelAdapter(config.providerConfig))
-      this.kernel = kernel
-      this.conversationModelProvider.setCurrentModel({
-        providerId: config.providerConfig.provider,
-        modelId: config.providerConfig.modelId,
-        executor: kernel
-      })
+      initialProviderConfig = loadAppConfig().providerConfig
     } catch {
       // Provider configuration is optional; the GUI remains usable and reports NOT_CONFIGURED.
     }
+    const providerService = new ProviderRuntimeService({
+      modelProvider: this.conversationModelProvider,
+      initialConfig: initialProviderConfig,
+      hasActiveTurn: () => runtime.hasActiveTurn('desktop-conversation-default')
+    })
     const conversationService = new DesktopConversationService(
       'desktop-conversation-default',
       treeService,
@@ -72,6 +74,7 @@ export class ElectronHost {
       service: conversationService,
       senderPolicy
     })
+    this.unregisterProviderTransport = registerProviderTransport(providerService, senderPolicy)
 
     this.setupSecurityHeaders(parsedRendererUrl)
   }
@@ -185,6 +188,11 @@ export class ElectronHost {
     if (this.unregisterConversationTransport) {
       this.unregisterConversationTransport()
       this.unregisterConversationTransport = null
+    }
+
+    if (this.unregisterProviderTransport) {
+      this.unregisterProviderTransport()
+      this.unregisterProviderTransport = null
     }
 
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {

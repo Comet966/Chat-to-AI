@@ -22,6 +22,7 @@ describe('Preload Desktop API Bridge', () => {
     expect(Object.isFrozen(bridge)).toBe(true)
     expect(Object.isFrozen(bridge.app)).toBe(true)
     expect(Object.isFrozen(bridge.conversation)).toBe(true)
+    expect(Object.isFrozen(bridge.provider)).toBe(true)
   })
 
   it('should delegate getInfo to ipc invoke with correct channel', async () => {

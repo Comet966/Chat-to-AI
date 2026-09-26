@@ -6,6 +6,12 @@ import type {
   SetCurrentConversationTurnInput,
   StartConversationTurnInput
 } from './conversation.contract.js'
+import type {
+  DesktopModelCatalogDto,
+  DesktopProviderResult,
+  DesktopProviderSettingsDto,
+  DesktopProviderSettingsInput
+} from './provider.contract.js'
 
 export const DESKTOP_IPC_CHANNELS = {
   APP_GET_INFO: 'desktop:app:get-info',
@@ -13,7 +19,12 @@ export const DESKTOP_IPC_CHANNELS = {
   CONVERSATION_SET_CURRENT: 'desktop:conversation:current:set',
   CONVERSATION_START_TURN: 'desktop:conversation:turn:start',
   CONVERSATION_CANCEL_TURN: 'desktop:conversation:turn:cancel',
-  CONVERSATION_EVENT: 'desktop:conversation:event'
+  CONVERSATION_EVENT: 'desktop:conversation:event',
+  PROVIDER_GET_SETTINGS: 'desktop:provider:settings:get',
+  PROVIDER_SAVE_SETTINGS: 'desktop:provider:settings:save',
+  PROVIDER_CLEAR_KEY: 'desktop:provider:key:clear',
+  PROVIDER_TEST_CONNECTION: 'desktop:provider:connection:test',
+  PROVIDER_LIST_MODELS: 'desktop:provider:models:list'
 } as const
 
 export type DesktopIpcChannel =
@@ -57,6 +68,13 @@ export interface DesktopApi {
     ): Promise<DesktopConversationResult<ConversationTurnAcceptedDto>>
     cancelTurn(): Promise<DesktopConversationResult<void>>
     onEvent(listener: (event: DesktopConversationEvent) => void): () => void
+  }
+  provider: {
+    getSettings(): Promise<DesktopProviderResult<DesktopProviderSettingsDto>>
+    saveSettings(input: DesktopProviderSettingsInput): Promise<DesktopProviderResult<void>>
+    clearKey(): Promise<DesktopProviderResult<void>>
+    testConnection(): Promise<DesktopProviderResult<void>>
+    listModels(input: DesktopProviderSettingsInput): Promise<DesktopProviderResult<DesktopModelCatalogDto>>
   }
 }
 

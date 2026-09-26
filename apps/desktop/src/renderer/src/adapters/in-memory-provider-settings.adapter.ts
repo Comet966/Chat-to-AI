@@ -82,4 +82,14 @@ export class InMemoryProviderSettingsAdapter implements ProviderSettingsPort {
       }
     }
   }
+
+  public async listModels(_data: ProviderSettingsData): Promise<ProviderSettingsResult<readonly string[]>> {
+    return {
+      ok: false,
+      error: {
+        code: 'NOT_CONNECTED',
+        message: 'UI Preview mode: model catalog is not connected.'
+      }
+    }
+  }
 }

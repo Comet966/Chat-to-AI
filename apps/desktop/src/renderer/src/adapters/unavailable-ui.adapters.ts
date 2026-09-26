@@ -11,8 +11,13 @@ import type {
   ConversationTreeUiPort,
   DeleteNodesInput
 } from '../ports/conversation-tree-ui.port.js'
+import type {
+  ProviderSettingsData,
+  ProviderSettingsPort,
+  ProviderSettingsResult
+} from '../ports/provider-settings.port.js'
 
-const unavailableError = { code: 'SERVICE_UNAVAILABLE', message: 'Desktop service is unavailable' }
+const unavailableError = { code: 'SERVICE_UNAVAILABLE', message: 'Desktop service is unavailable' } as const
 
 export class UnavailableChatUiAdapter implements ChatUiPort {
   private state: ChatUiState = { status: 'failed', messages: [], error: unavailableError.message }
@@ -40,5 +45,18 @@ export class UnavailableConversationTreeUiAdapter implements ConversationTreeUiP
   }
   public async reload(): Promise<ConversationTreeResult<ConversationTreeSnapshot>> {
     return this.getSnapshot()
+  }
+}
+
+export class UnavailableProviderSettingsAdapter implements ProviderSettingsPort {
+  private failure<T>(): ProviderSettingsResult<T> {
+    return { ok: false, error: unavailableError }
+  }
+  public async getSettings(): Promise<ProviderSettingsResult<ProviderSettingsData>> { return this.failure() }
+  public async saveSettings(_data: ProviderSettingsData): Promise<ProviderSettingsResult<void>> { return this.failure() }
+  public async clearKey(): Promise<void> {}
+  public async testConnection(): Promise<ProviderSettingsResult<void>> { return this.failure() }
+  public async listModels(_data: ProviderSettingsData): Promise<ProviderSettingsResult<readonly string[]>> {
+    return this.failure()
   }
 }

@@ -1,4 +1,4 @@
-import React, { useReducer } from 'react'
+import React, { useReducer, useState } from 'react'
 import { Button } from '../../components/Button.js'
 import { Field } from '../../components/Field.js'
 import { StatusNotice } from '../../components/StatusNotice.js'
@@ -26,6 +26,8 @@ export function ProviderSettingsForm({
     noticeMessage: null,
     showApiKey: false
   } as ProviderSettingsFormState)
+  const [modelOptions, setModelOptions] = useState<readonly string[]>([])
+  const [loadingModels, setLoadingModels] = useState(false)
 
   const handleProviderChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     dispatch({
@@ -72,7 +74,7 @@ export function ProviderSettingsForm({
     if (saveRes.ok) {
       dispatch({
         type: 'saveSuccess',
-        message: 'Settings saved in memory (valid only for this UI preview session).'
+        message: 'Settings saved for this application session.'
       })
     } else {
       dispatch({
@@ -86,11 +88,25 @@ export function ProviderSettingsForm({
 
   const handleTestConnection = async () => {
     const res = await port.testConnection()
-    if (!res.ok) {
+    dispatch(res.ok
+      ? { type: 'saveSuccess', message: 'Connection successful.' }
+      : { type: 'testConnectionResult', message: res.error.message })
+  }
+
+  const handleLoadModels = async () => {
+    setLoadingModels(true)
+    const res = await port.listModels(state.data)
+    setLoadingModels(false)
+    if (res.ok) {
+      setModelOptions(res.value)
       dispatch({
-        type: 'testConnectionResult',
-        message: res.error.message
+        type: 'saveSuccess',
+        message: res.value.length > 0
+          ? `Loaded ${res.value.length} models.`
+          : 'The provider returned no models; enter a model ID manually.'
       })
+    } else {
+      dispatch({ type: 'testConnectionResult', message: res.error.message })
     }
   }
 
@@ -153,7 +169,9 @@ export function ProviderSettingsForm({
         label="API Key"
         htmlFor="apiKey"
         error={state.errors.apiKey}
-        hint="Stored strictly in memory for this preview; never saved to disk"
+        hint={state.data.hasApiKey
+          ? 'A key is configured in Main Process. Leave blank to keep it.'
+          : 'Stored only in Main Process memory; never returned to the page.'}
       >
         <div className="api-key-input-row">
           <input
@@ -176,7 +194,7 @@ export function ProviderSettingsForm({
           <Button
             variant="danger"
             onClick={handleClearKey}
-            disabled={!state.data.apiKey}
+            disabled={!state.data.apiKey && !state.data.hasApiKey}
             aria-label="Clear API key"
           >
             Clear
@@ -194,7 +212,14 @@ export function ProviderSettingsForm({
           placeholder="e.g. gpt-4o, claude-3-5-sonnet"
           aria-invalid={Boolean(state.errors.modelId)}
           aria-describedby={state.errors.modelId ? 'modelId-error' : undefined}
+          list="provider-model-options"
         />
+        <datalist id="provider-model-options">
+          {modelOptions.map((model) => <option key={model} value={model} />)}
+        </datalist>
+        <Button type="button" variant="secondary" onClick={handleLoadModels} disabled={loadingModels}>
+          {loadingModels ? 'Loading Models...' : 'Load Models'}
+        </Button>
       </Field>
 
       <Field

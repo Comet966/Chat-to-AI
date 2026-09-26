@@ -41,6 +41,10 @@ export class ConversationRuntimeService {
     private readonly idGenerator: ConversationRuntimeIdGenerator = new DefaultConversationRuntimeIdGenerator()
   ) {}
 
+  public hasActiveTurn(treeId: ConversationTreeId): boolean {
+    return this.activeTurnRegistry.hasActiveTurn(treeId)
+  }
+
   public async sendMessage(
     command: SendConversationMessageCommand,
     sink: ConversationTurnEventSink

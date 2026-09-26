@@ -10,12 +10,12 @@ export const PROVIDER_DEFAULTS: Record<ProviderKind, { baseUrl: string; modelId:
     modelId: 'gpt-4o'
   },
   anthropic: {
-    baseUrl: 'https://api.anthropic.com/v1',
+    baseUrl: 'https://api.anthropic.com',
     modelId: 'claude-3-5-sonnet-20241022',
     anthropicVersion: '2023-06-01'
   },
   gemini: {
-    baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+    baseUrl: 'https://generativelanguage.googleapis.com',
     modelId: 'gemini-1.5-pro'
   }
 }
@@ -71,7 +71,8 @@ export function providerSettingsReducer(
         status: 'editing',
         data: {
           ...state.data,
-          apiKey: ''
+          apiKey: '',
+          hasApiKey: false
         },
         noticeMessage: 'API Key cleared from memory.'
       }

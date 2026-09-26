@@ -4,6 +4,7 @@ export interface ProviderSettingsData {
   provider: ProviderKind
   baseUrl: string
   apiKey: string
+  hasApiKey?: boolean
   modelId: string
   maxOutputTokens: number
   anthropicVersion?: string
@@ -12,7 +13,12 @@ export interface ProviderSettingsData {
 export type ProviderSettingsErrorCode =
   | 'VALIDATION_FAILED'
   | 'NOT_CONNECTED'
+  | 'NOT_CONFIGURED'
   | 'NOT_IMPLEMENTED'
+  | 'CONNECTION_FAILED'
+  | 'TURN_IN_PROGRESS'
+  | 'UNAUTHORIZED_SENDER'
+  | 'SERVICE_UNAVAILABLE'
   | 'INTERNAL_ERROR'
 
 export interface ProviderSettingsError {
@@ -30,4 +36,5 @@ export interface ProviderSettingsPort {
   saveSettings(data: ProviderSettingsData): Promise<ProviderSettingsResult<void>>
   clearKey(): Promise<void>
   testConnection(): Promise<ProviderSettingsResult<void>>
+  listModels(data: ProviderSettingsData): Promise<ProviderSettingsResult<readonly string[]>>
 }

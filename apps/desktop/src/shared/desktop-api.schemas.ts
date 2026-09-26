@@ -116,3 +116,53 @@ export const DesktopConversationEventSchema = z.discriminatedUnion('type', [
     treeId: IdSchema, snapshot: ConversationSnapshotSchema
   }).strict()
 ])
+
+export const ProviderSettingsInputSchema = z.object({
+  provider: z.enum(['openai-compatible', 'anthropic', 'gemini']),
+  baseUrl: z.string().min(1).max(2048),
+  apiKey: z.string().max(4096),
+  modelId: z.string().min(1).max(256),
+  maxOutputTokens: z.number().int().positive().max(1_000_000),
+  anthropicVersion: z.string().min(1).max(64).optional()
+}).strict()
+
+export const ProviderSettingsSchema = ProviderSettingsInputSchema.extend({
+  hasApiKey: z.boolean()
+}).strict()
+
+export const DesktopProviderErrorSchema = z.object({
+  code: z.enum([
+    'NOT_CONFIGURED',
+    'TURN_IN_PROGRESS',
+    'VALIDATION_FAILED',
+    'UNAUTHORIZED_SENDER',
+    'CONNECTION_FAILED',
+    'INTERNAL_ERROR'
+  ]),
+  message: z.string().max(2000),
+  field: z.string().max(128).optional()
+}).strict()
+
+const ProviderResultErrorSchema = z.object({
+  ok: z.literal(false),
+  error: DesktopProviderErrorSchema
+}).strict()
+
+export const ProviderSettingsResultSchema = z.union([
+  z.object({ ok: z.literal(true), value: ProviderSettingsSchema }).strict(),
+  ProviderResultErrorSchema
+])
+export const ProviderVoidResultSchema = z.union([
+  z.object({ ok: z.literal(true), value: z.undefined() }).strict(),
+  ProviderResultErrorSchema
+])
+export const ProviderModelCatalogResultSchema = z.union([
+  z.object({
+    ok: z.literal(true),
+    value: z.object({
+      models: z.array(z.string().min(1).max(256)).max(500),
+      supportsManualEntry: z.literal(true)
+    }).strict()
+  }).strict(),
+  ProviderResultErrorSchema
+])

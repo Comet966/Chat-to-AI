@@ -156,7 +156,7 @@ describe('ProviderSettingsPage and Form', () => {
     await user.click(saveBtn)
 
     expect(
-      await screen.findByText(/Settings saved in memory \(valid only for this UI preview session\)/i)
+      await screen.findByText(/Settings saved for this application session/i)
     ).toBeDefined()
 
     const updated = (await adapter.getSettings()).value!
