@@ -2,9 +2,16 @@ import { app, BrowserWindow, session } from 'electron'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { ChatKernel } from 'chat-core'
+import { ConversationRuntimeService, InMemoryConversationCursorStore } from 'chat-conversation-runtime'
+import { ConversationTreeService, InMemoryConversationTreeRepository } from 'chat-conversation-tree'
 import { createModelAdapter } from 'chat-model-adapters'
 import { loadAppConfig, type AppConfig } from './app-config.js'
 import { registerDesktopShellTransport } from './desktop-shell.transport.js'
+import {
+  DesktopConversationService,
+  MutableConversationModelProvider
+} from './conversation/desktop-conversation.service.js'
+import { registerConversationTransport } from './conversation/conversation.transport.js'
 import { registerElectronChatTransport } from './electron-transport.js'
 import { NavigationPolicy } from './security/navigation-policy.js'
 import {
@@ -19,6 +26,8 @@ export class ElectronHost {
   private unregisterTransport: (() => void) | null = null
   private unregisterShellTransport: (() => void) | null = null
   private unregisterChatTransport: (() => void) | null = null
+  private unregisterConversationTransport: (() => void) | null = null
+  private conversationModelProvider: MutableConversationModelProvider | null = null
   private navigationPolicy: NavigationPolicy | null = null
 
   /**
@@ -35,6 +44,35 @@ export class ElectronHost {
     const senderPolicy = new SenderPolicy({ allowedOrigins })
     this.unregisterShellTransport = registerDesktopShellTransport({ senderPolicy })
 
+    const treeService = new ConversationTreeService(new InMemoryConversationTreeRepository())
+    const runtime = new ConversationRuntimeService(
+      treeService,
+      new InMemoryConversationCursorStore()
+    )
+    this.conversationModelProvider = new MutableConversationModelProvider()
+    try {
+      const config = loadAppConfig()
+      const kernel = new ChatKernel(createModelAdapter(config.providerConfig))
+      this.kernel = kernel
+      this.conversationModelProvider.setCurrentModel({
+        providerId: config.providerConfig.provider,
+        modelId: config.providerConfig.modelId,
+        executor: kernel
+      })
+    } catch {
+      // Provider configuration is optional; the GUI remains usable and reports NOT_CONFIGURED.
+    }
+    const conversationService = new DesktopConversationService(
+      'desktop-conversation-default',
+      treeService,
+      runtime,
+      this.conversationModelProvider
+    )
+    this.unregisterConversationTransport = registerConversationTransport({
+      service: conversationService,
+      senderPolicy
+    })
+
     this.setupSecurityHeaders(parsedRendererUrl)
   }
 
@@ -46,6 +84,11 @@ export class ElectronHost {
     const modelAdapter = createModelAdapter(config.providerConfig)
 
     this.kernel = new ChatKernel(modelAdapter)
+    this.conversationModelProvider?.setCurrentModel({
+      providerId: config.providerConfig.provider,
+      modelId: config.providerConfig.modelId,
+      executor: this.kernel
+    })
     const parsedRendererUrl = rendererUrl ? new URL(rendererUrl) : null
     this.unregisterChatTransport = registerElectronChatTransport({
       kernel: this.kernel,
@@ -137,6 +180,11 @@ export class ElectronHost {
     if (this.unregisterChatTransport) {
       this.unregisterChatTransport()
       this.unregisterChatTransport = null
+    }
+
+    if (this.unregisterConversationTransport) {
+      this.unregisterConversationTransport()
+      this.unregisterConversationTransport = null
     }
 
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {

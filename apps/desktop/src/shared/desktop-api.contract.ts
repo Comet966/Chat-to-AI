@@ -1,5 +1,19 @@
+import type {
+  ConversationSnapshotDto,
+  ConversationTurnAcceptedDto,
+  DesktopConversationEvent,
+  DesktopConversationResult,
+  SetCurrentConversationTurnInput,
+  StartConversationTurnInput
+} from './conversation.contract.js'
+
 export const DESKTOP_IPC_CHANNELS = {
-  APP_GET_INFO: 'desktop:app:get-info'
+  APP_GET_INFO: 'desktop:app:get-info',
+  CONVERSATION_GET_SNAPSHOT: 'desktop:conversation:snapshot:get',
+  CONVERSATION_SET_CURRENT: 'desktop:conversation:current:set',
+  CONVERSATION_START_TURN: 'desktop:conversation:turn:start',
+  CONVERSATION_CANCEL_TURN: 'desktop:conversation:turn:cancel',
+  CONVERSATION_EVENT: 'desktop:conversation:event'
 } as const
 
 export type DesktopIpcChannel =
@@ -32,6 +46,17 @@ export interface AppInfo {
 export interface DesktopApi {
   app: {
     getInfo(): Promise<DesktopResult<AppInfo>>
+  }
+  conversation: {
+    getSnapshot(): Promise<DesktopConversationResult<ConversationSnapshotDto>>
+    setCurrentTurn(
+      input: SetCurrentConversationTurnInput
+    ): Promise<DesktopConversationResult<ConversationSnapshotDto>>
+    startTurn(
+      input: StartConversationTurnInput
+    ): Promise<DesktopConversationResult<ConversationTurnAcceptedDto>>
+    cancelTurn(): Promise<DesktopConversationResult<void>>
+    onEvent(listener: (event: DesktopConversationEvent) => void): () => void
   }
 }
 

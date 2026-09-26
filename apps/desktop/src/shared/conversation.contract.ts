@@ -40,6 +40,7 @@ export type DesktopConversationErrorCode =
   | 'VERSION_CONFLICT'
   | 'INVALID_CONTEXT_SELECTION'
   | 'VALIDATION_FAILED'
+  | 'UNAUTHORIZED_SENDER'
   | 'MODEL_REQUEST_FAILED'
   | 'CANCELLED'
   | 'INTERNAL_ERROR'
@@ -55,6 +56,11 @@ export type DesktopConversationResult<T> =
 
 export interface ConversationTurnAcceptedDto {
   requestId: string
+}
+
+export interface SetCurrentConversationTurnInput {
+  turnId: string
+  expectedRevision: number
 }
 
 export type DesktopConversationEvent =

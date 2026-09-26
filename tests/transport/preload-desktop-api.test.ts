@@ -4,7 +4,7 @@ import { DESKTOP_IPC_CHANNELS } from '../../apps/desktop/src/shared/desktop-api.
 
 describe('Preload Desktop API Bridge', () => {
   it('should expose a narrow frozen API without ipcRenderer, require, or process', () => {
-    const mockIpc = { invoke: vi.fn() }
+    const mockIpc = { invoke: vi.fn(), on: vi.fn(), removeListener: vi.fn() }
     const bridge = createDesktopBridge(mockIpc)
 
     expect(bridge).toHaveProperty('app')
@@ -21,6 +21,7 @@ describe('Preload Desktop API Bridge', () => {
     // Must be frozen
     expect(Object.isFrozen(bridge)).toBe(true)
     expect(Object.isFrozen(bridge.app)).toBe(true)
+    expect(Object.isFrozen(bridge.conversation)).toBe(true)
   })
 
   it('should delegate getInfo to ipc invoke with correct channel', async () => {
@@ -34,7 +35,9 @@ describe('Preload Desktop API Bridge', () => {
       }
     }
     const mockIpc = {
-      invoke: vi.fn().mockResolvedValueOnce(mockInfo)
+      invoke: vi.fn().mockResolvedValueOnce(mockInfo),
+      on: vi.fn(),
+      removeListener: vi.fn()
     }
 
     const bridge = createDesktopBridge(mockIpc)
@@ -42,5 +45,41 @@ describe('Preload Desktop API Bridge', () => {
 
     expect(mockIpc.invoke).toHaveBeenCalledWith(DESKTOP_IPC_CHANNELS.APP_GET_INFO, {})
     expect(result).toEqual(mockInfo)
+  })
+
+  it('validates conversation responses and removes only its own event listener', async () => {
+    const handlers = new Map<string, (event: unknown, payload: unknown) => void>()
+    const mockIpc = {
+      invoke: vi.fn().mockResolvedValue({
+        ok: true,
+        value: {
+          treeId: 'tree-1', revision: 0, rootTurnId: null, currentTurnId: null, turns: []
+        }
+      }),
+      on: vi.fn((channel: string, handler: (event: unknown, payload: unknown) => void) => {
+        handlers.set(channel, handler)
+      }),
+      removeListener: vi.fn()
+    }
+    const bridge = createDesktopBridge(mockIpc)
+    const snapshot = await bridge.conversation.getSnapshot()
+    expect(snapshot.ok).toBe(true)
+
+    const listener = vi.fn()
+    const unsubscribe = bridge.conversation.onEvent(listener)
+    const handler = handlers.get(DESKTOP_IPC_CHANNELS.CONVERSATION_EVENT)!
+    handler({}, { type: 'invalid-event' })
+    expect(listener).not.toHaveBeenCalled()
+    handler({}, {
+      type: 'conversation.turn.delta', schemaVersion: 1, treeId: 'tree-1',
+      requestId: 'request-1', sequence: 0, delta: 'hello'
+    })
+    expect(listener).toHaveBeenCalledOnce()
+
+    unsubscribe()
+    expect(mockIpc.removeListener).toHaveBeenCalledWith(
+      DESKTOP_IPC_CHANNELS.CONVERSATION_EVENT,
+      handler
+    )
   })
 })
