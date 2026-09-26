@@ -106,13 +106,17 @@
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  cursor: grab;
+  cursor: pointer;
   color: var(--color-text-secondary);
   transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
   user-select: none;
 }
 
-.tree-node-circle:active {
+.tree-canvas-wrapper .react-flow__pane {
+  cursor: grab;
+}
+
+.tree-canvas-wrapper .react-flow__pane:active {
   cursor: grabbing;
 }
 

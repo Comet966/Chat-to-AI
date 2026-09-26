@@ -248,7 +248,7 @@ describe('Tree Snapshot Validation and Flow Element Mapping', () => {
     expect(currentNode?.data.isCurrent).toBe(true)
     expect(currentNode?.data.isPath).toBe(true)
     expect(currentNode?.data.isSelected).toBe(false)
-    expect(currentNode?.draggable).toBe(true)
+    expect(currentNode?.draggable).toBe(false)
 
     const selectedNode = flowElements.nodes.find((n) => n.id === 'node-u2')
     expect(selectedNode?.data.isSelected).toBe(true)

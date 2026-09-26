@@ -3,12 +3,10 @@ import {
   Background,
   ReactFlow,
   ReactFlowProvider,
-  useNodesState,
   useReactFlow,
   type Edge,
   type Node,
   type NodeMouseHandler,
-  type OnNodeDrag,
   type OnSelectionChangeParams
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
@@ -67,32 +65,8 @@ const InnerCanvas = React.forwardRef<ConversationTreeCanvasHandle, InnerCanvasPr
     ref
   ) {
     const { fitView, setCenter, getNode } = useReactFlow()
-    const [renderedNodes, setRenderedNodes, onNodesChange] =
-      useNodesState<ConversationFlowNode>(nodes)
     const [hoveredNodeId, setHoveredNodeId] = React.useState<string | null>(null)
     const hasInitializedFitView = useRef(false)
-    const draggedPositions = useRef(new Map<string, { x: number; y: number }>())
-
-    // Keep domain-driven node data in sync while retaining positions changed by
-    // the user. Drag coordinates are deliberately presentation-only.
-    useEffect(() => {
-      const incomingIds = new Set(nodes.map((node) => node.id))
-      for (const nodeId of draggedPositions.current.keys()) {
-        if (!incomingIds.has(nodeId)) draggedPositions.current.delete(nodeId)
-      }
-
-      setRenderedNodes((currentNodes) => {
-        const currentById = new Map(currentNodes.map((node) => [node.id, node]))
-        return nodes.map((node) => {
-          const currentNode = currentById.get(node.id)
-          return {
-            ...node,
-            position: draggedPositions.current.get(node.id) ?? node.position,
-            measured: currentNode?.measured ?? node.measured
-          }
-        })
-      })
-    }, [nodes, setRenderedNodes])
 
     const handleFitView = useCallback(() => {
       fitView({ padding: 0.2, duration: 300 })
@@ -103,8 +77,8 @@ const InnerCanvas = React.forwardRef<ConversationTreeCanvasHandle, InnerCanvasPr
         const node = getNode(nodeId)
         if (node) {
           // Center on node
-          const x = node.position.x + (node.measured?.width ?? 240) / 2
-          const y = node.position.y + (node.measured?.height ?? 96) / 2
+          const x = node.position.x + (node.measured?.width ?? 48) / 2
+          const y = node.position.y + (node.measured?.height ?? 48) / 2
           setCenter(x, y, { duration: 350, zoom: 1 })
         }
       },
@@ -150,10 +124,6 @@ const InnerCanvas = React.forwardRef<ConversationTreeCanvasHandle, InnerCanvasPr
       [onSelectionChange]
     )
 
-    const handleNodeDragStop = useCallback<OnNodeDrag<ConversationFlowNode>>((_event, node) => {
-      draggedPositions.current.set(node.id, { ...node.position })
-    }, [])
-
     const handleNodeMouseEnter = useCallback<NodeMouseHandler<ConversationFlowNode>>(
       (_event, node) => setHoveredNodeId(node.id),
       []
@@ -166,28 +136,26 @@ const InnerCanvas = React.forwardRef<ConversationTreeCanvasHandle, InnerCanvasPr
       []
     )
 
-    const hoveredNode = renderedNodes.find((node) => node.id === hoveredNodeId)
+    const hoveredNode = nodes.find((node) => node.id === hoveredNodeId)
 
     const proOptions = useMemo(() => ({ hideAttribution: true }), [])
 
     return (
       <div className="tree-canvas-wrapper" data-testid="tree-canvas-wrapper">
         <ReactFlow
-          nodes={renderedNodes}
+          nodes={nodes}
           edges={edges}
           nodeTypes={nodeTypes}
-          onNodesChange={onNodesChange}
           onNodeClick={handleNodeClick}
-          onNodeDragStop={handleNodeDragStop}
           onNodeMouseEnter={handleNodeMouseEnter}
           onNodeMouseLeave={handleNodeMouseLeave}
           onPaneClick={onPaneClick}
           onSelectionChange={handleSelectionChange}
-          nodesDraggable={true}
+          nodesDraggable={false}
           nodesConnectable={false}
           elementsSelectable={true}
-          selectionOnDrag={true}
-          panOnDrag={[1, 2]} // Pan on middle/right mouse or drag
+          selectionOnDrag={false}
+          panOnDrag={true}
           deleteKeyCode={null}
           proOptions={proOptions}
           minZoom={0.2}

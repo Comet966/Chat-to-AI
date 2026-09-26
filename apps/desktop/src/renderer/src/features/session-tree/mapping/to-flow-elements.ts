@@ -82,7 +82,7 @@ export function toFlowElements(
         isSelected,
         isHighlighted
       },
-      draggable: true,
+      draggable: false,
       selectable: true,
       selected: isSelected
     }
