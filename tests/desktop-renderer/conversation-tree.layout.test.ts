@@ -32,7 +32,7 @@ describe('Dagre Tree Layout', () => {
 
     // Branch nodes at same level must not overlap horizontally
     expect(b1Node.position.x).not.toBe(b2Node.position.x)
-    expect(Math.abs(b1Node.position.x - b2Node.position.x)).toBeGreaterThanOrEqual(240) // width
+    expect(Math.abs(b1Node.position.x - b2Node.position.x)).toBeGreaterThanOrEqual(48) // circle width
   })
 
   it('produces deterministic output for identical input', () => {

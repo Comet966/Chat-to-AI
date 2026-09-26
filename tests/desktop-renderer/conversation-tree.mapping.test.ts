@@ -230,7 +230,8 @@ describe('Tree Snapshot Validation and Flow Element Mapping', () => {
     // Path should be: node-root -> node-u1 -> node-a1 -> node-u2 -> node-a2-b1
     // node-a2-b2 is a sibling branch and should NOT be on the active path!
     const selected = new Set(['node-u2'])
-    const flowElements = toFlowElements(DEFAULT_DEMO_TREE_SNAPSHOT, selected)
+    const highlighted = new Set(['node-a2-b2'])
+    const flowElements = toFlowElements(DEFAULT_DEMO_TREE_SNAPSHOT, selected, highlighted)
 
     expect(flowElements.nodes.length).toBe(6)
     expect(flowElements.edges.length).toBe(5)
@@ -247,6 +248,7 @@ describe('Tree Snapshot Validation and Flow Element Mapping', () => {
     expect(currentNode?.data.isCurrent).toBe(true)
     expect(currentNode?.data.isPath).toBe(true)
     expect(currentNode?.data.isSelected).toBe(false)
+    expect(currentNode?.draggable).toBe(true)
 
     const selectedNode = flowElements.nodes.find((n) => n.id === 'node-u2')
     expect(selectedNode?.data.isSelected).toBe(true)
@@ -255,6 +257,7 @@ describe('Tree Snapshot Validation and Flow Element Mapping', () => {
     const branch2Node = flowElements.nodes.find((n) => n.id === 'node-a2-b2')
     expect(branch2Node?.data.isCurrent).toBe(false)
     expect(branch2Node?.data.isPath).toBe(false)
+    expect(branch2Node?.data.isHighlighted).toBe(true)
 
     // Edges
     const activeEdge = flowElements.edges.find((e) => e.id === 'edge-node-u2-node-a2-b1')

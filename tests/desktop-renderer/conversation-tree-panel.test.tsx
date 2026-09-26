@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react'
 import { describe, expect, it } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { SessionTreePanel } from '../../apps/desktop/src/renderer/src/features/session-tree/SessionTreePanel.js'
 import { DemoConversationTreeUiAdapter } from '../../apps/desktop/src/renderer/src/adapters/demo-conversation-tree-ui.adapter.js'
@@ -11,7 +11,10 @@ import { PortsProvider } from '../../apps/desktop/src/renderer/src/ports/ports.c
 import type { ConversationTreeSnapshot } from '../../apps/desktop/src/renderer/src/ports/conversation-tree-ui.port.js'
 
 describe('SessionTreePanel Interactive Component', () => {
-  const renderPanel = (customTreeAdapter?: DemoConversationTreeUiAdapter) => {
+  const renderPanel = (
+    customTreeAdapter?: DemoConversationTreeUiAdapter,
+    highlightedNodeIds: readonly string[] = []
+  ) => {
     const conversationTree = customTreeAdapter ?? new DemoConversationTreeUiAdapter()
     const ports = {
       conversationTree,
@@ -23,7 +26,7 @@ describe('SessionTreePanel Interactive Component', () => {
       ports,
       ...render(
         <PortsProvider ports={ports}>
-          <SessionTreePanel />
+          <SessionTreePanel highlightedNodeIds={highlightedNodeIds} />
         </PortsProvider>
       )
     }
@@ -56,9 +59,24 @@ describe('SessionTreePanel Interactive Component', () => {
     expect(screen.getByTestId('tree-node-node-a2-b1')).toBeDefined()
     expect(screen.getByTestId('tree-node-node-a2-b2')).toBeDefined()
 
-    // Node content snippets visible
+    // Content stays out of the topology until a node is hovered or focused.
+    expect(screen.queryByRole('tooltip')).toBeNull()
+    fireEvent.mouseEnter(screen.getByTestId('tree-node-node-root'))
+    expect(screen.getByRole('tooltip')).toBeDefined()
     expect(screen.getByText(/You are an intelligent AI conversational assistant/i)).toBeDefined()
-    expect(screen.getByText(/Can you explain the architecture of a multi-turn/i)).toBeDefined()
+    fireEvent.mouseLeave(screen.getByTestId('tree-node-node-root'))
+    expect(screen.queryByRole('tooltip')).toBeNull()
+  })
+
+  it('applies presentation-only highlights through the public panel API', async () => {
+    renderPanel(undefined, ['node-u1', 'node-a2-b2'])
+
+    const highlighted = await screen.findByTestId('tree-node-node-u1')
+    const notHighlighted = screen.getByTestId('tree-node-node-a1')
+
+    expect(highlighted.getAttribute('data-highlighted')).toBe('true')
+    expect(highlighted.classList.contains('is-highlighted')).toBe(true)
+    expect(notHighlighted.getAttribute('data-highlighted')).toBe('false')
   })
 
   it('enables action buttons when selecting an eligible non-root node', async () => {
@@ -68,7 +86,7 @@ describe('SessionTreePanel Interactive Component', () => {
     await screen.findByText(/当前: #4 \(assistant\)/i)
 
     const u1Node = screen.getByTestId('tree-node-node-u1')
-    await user.click(u1Node)
+    fireEvent.click(u1Node)
 
     expect(await screen.findByText('已选 1 项')).toBeDefined()
 
@@ -89,7 +107,7 @@ describe('SessionTreePanel Interactive Component', () => {
     await screen.findByText(/当前: #4 \(assistant\)/i)
 
     const rootNode = screen.getByTestId('tree-node-node-root')
-    await user.click(rootNode)
+    fireEvent.click(rootNode)
 
     expect(await screen.findByText('已选 1 项')).toBeDefined()
 
@@ -111,7 +129,7 @@ describe('SessionTreePanel Interactive Component', () => {
 
     // node-a2-b1 is the current active node
     const currentActive = await screen.findByTestId('tree-node-node-a2-b1')
-    await user.click(currentActive)
+    fireEvent.click(currentActive)
 
     const setCurrentBtn = screen.getByRole('button', { name: '设为当前节点' })
     expect((setCurrentBtn as HTMLButtonElement).disabled).toBe(true)
@@ -124,7 +142,7 @@ describe('SessionTreePanel Interactive Component', () => {
     await screen.findByText(/当前: #4 \(assistant\)/i)
 
     // Select node-u1 (#1)
-    await user.click(screen.getByTestId('tree-node-node-u1'))
+    fireEvent.click(screen.getByTestId('tree-node-node-u1'))
 
     // Click "设为当前"
     const setCurrentBtn = screen.getByRole('button', { name: '设为当前节点' })
@@ -144,7 +162,7 @@ describe('SessionTreePanel Interactive Component', () => {
     await screen.findByText(/当前: #4 \(assistant\)/i)
 
     // Select node-a2-b2 (#5)
-    await user.click(screen.getByTestId('tree-node-node-a2-b2'))
+    fireEvent.click(screen.getByTestId('tree-node-node-a2-b2'))
 
     // Click "新增节点"
     await user.click(screen.getByRole('button', { name: '新增子节点或分支' }))
@@ -180,7 +198,7 @@ describe('SessionTreePanel Interactive Component', () => {
     await screen.findByText(/当前: #4 \(assistant\)/i)
 
     // Select leaf node node-a2-b2
-    await user.click(screen.getByTestId('tree-node-node-a2-b2'))
+    fireEvent.click(screen.getByTestId('tree-node-node-a2-b2'))
 
     // Click "删除所选"
     await user.click(screen.getByRole('button', { name: '删除所选节点' }))
@@ -258,7 +276,7 @@ describe('SessionTreePanel Interactive Component', () => {
     const { ports } = renderPanel()
 
     await screen.findByText(/当前: #4 \(assistant\)/i)
-    await user.click(screen.getByTestId('tree-node-node-a2-b2'))
+    fireEvent.click(screen.getByTestId('tree-node-node-a2-b2'))
     await user.click(screen.getByRole('button', { name: '新增子节点或分支' }))
     expect(await screen.findByRole('dialog', { name: '新增子节点' })).toBeDefined()
 

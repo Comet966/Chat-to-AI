@@ -9,10 +9,10 @@ export interface LayoutOptions {
 }
 
 export const DEFAULT_LAYOUT_OPTIONS: Required<LayoutOptions> = {
-  nodeWidth: 240,
-  nodeHeight: 96,
-  nodesep: 48,
-  ranksep: 64
+  nodeWidth: 48,
+  nodeHeight: 48,
+  nodesep: 44,
+  ranksep: 56
 }
 
 export function dagreTreeLayout<T extends Record<string, unknown>>(

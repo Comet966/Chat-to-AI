@@ -13,48 +13,32 @@ export function ConversationTreeNode({
 
   const roleName = roleLabels[data.role] ?? data.role
 
-  const cardClasses = [
-    'tree-node-card',
+  const nodeClasses = [
+    'tree-node-circle',
     `role-${data.role}`,
     data.isCurrent ? 'is-current' : '',
     data.isPath ? 'is-path' : '',
-    data.isSelected ? 'is-selected' : ''
+    data.isSelected ? 'is-selected' : '',
+    data.isHighlighted ? 'is-highlighted' : ''
   ]
     .filter(Boolean)
     .join(' ')
 
   return (
     <div
-      className={cardClasses}
+      className={nodeClasses}
       role="treeitem"
+      tabIndex={0}
       aria-selected={data.isSelected}
       aria-label={`${roleName} node ${data.sequence}: ${data.contentSnippet}`}
       data-testid={`tree-node-${data.id}`}
+      data-highlighted={data.isHighlighted ? 'true' : 'false'}
     >
       <Handle type="target" position={Position.Top} isConnectable={false} className="tree-node-handle" />
 
-      <div className="tree-node-header">
-        <div className="tree-node-tags">
-          <span className={`tree-node-role-badge role-badge-${data.role}`}>
-            {roleName}
-          </span>
-          <span className="tree-node-seq-badge">#{data.sequence}</span>
-          {data.providerInfo && (
-            <span className="tree-node-provider-badge">
-              {data.providerInfo.modelId}
-            </span>
-          )}
-        </div>
-        {data.isCurrent && (
-          <span className="tree-node-current-badge" title="当前对话上下文节点">
-            ★ 当前
-          </span>
-        )}
-      </div>
-
-      <div className="tree-node-body">
-        <p className="tree-node-content">{data.contentSnippet}</p>
-      </div>
+      <span className="tree-node-sequence" aria-hidden="true">
+        {data.sequence}
+      </span>
 
       <Handle type="source" position={Position.Bottom} isConnectable={false} className="tree-node-handle" />
     </div>

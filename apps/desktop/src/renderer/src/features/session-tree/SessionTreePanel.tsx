@@ -18,7 +18,15 @@ import { dagreTreeLayout } from './layout/dagre-tree-layout.js'
 import { toFlowElements } from './mapping/to-flow-elements.js'
 import { validateTreeSnapshot } from './mapping/validate-tree-snapshot.js'
 
-export function SessionTreePanel() {
+export interface SessionTreePanelProps {
+  /**
+   * Presentation-only highlight state. Callers can use this to emphasize search
+   * results, generated nodes, or other transient UI state without mutating the tree.
+   */
+  highlightedNodeIds?: readonly string[]
+}
+
+export function SessionTreePanel({ highlightedNodeIds = [] }: SessionTreePanelProps) {
   const ports = usePorts()
   const port = useMemo(
     () => ports.conversationTree ?? new DemoConversationTreeUiAdapter(),
@@ -27,6 +35,10 @@ export function SessionTreePanel() {
   const [state, dispatch] = useReducer(conversationTreeReducer, initialConversationTreeState)
   const canvasRef = useRef<ConversationTreeCanvasHandle>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  const highlightedNodeIdSet = useMemo(
+    () => new Set(highlightedNodeIds),
+    [highlightedNodeIds]
+  )
 
   // 1. Fetch snapshot and subscribe to updates
   useEffect(() => {
@@ -65,10 +77,14 @@ export function SessionTreePanel() {
     if (!state.snapshot || !validation?.valid) {
       return { layoutNodes: [], layoutEdges: [] }
     }
-    const { nodes, edges } = toFlowElements(state.snapshot, state.selectedNodeIds)
+    const { nodes, edges } = toFlowElements(
+      state.snapshot,
+      state.selectedNodeIds,
+      highlightedNodeIdSet
+    )
     const layoutResult = dagreTreeLayout(nodes, edges)
     return { layoutNodes: layoutResult.nodes, layoutEdges: layoutResult.edges }
-  }, [state.snapshot, validation, state.selectedNodeIds])
+  }, [state.snapshot, validation, state.selectedNodeIds, highlightedNodeIdSet])
 
   // Current node dto
   const currentNode = useMemo(() => {

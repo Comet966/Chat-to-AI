@@ -17,6 +17,7 @@ export interface ConversationTreeNodeData extends Record<string, unknown> {
   isCurrent: boolean
   isPath: boolean
   isSelected: boolean
+  isHighlighted: boolean
 }
 
 export function createContentSnippet(content: string, maxLen = 60): string {
@@ -34,7 +35,8 @@ export interface FlowElementsResult {
 
 export function toFlowElements(
   snapshot: ConversationTreeSnapshot,
-  selectedNodeIds: Set<string>
+  selectedNodeIds: ReadonlySet<string>,
+  highlightedNodeIds: ReadonlySet<string> = new Set()
 ): FlowElementsResult {
   const nodeMap = new Map<string, ConversationTreeNodeDto>()
   for (const node of snapshot.nodes) {
@@ -61,6 +63,7 @@ export function toFlowElements(
     const isCurrent = node.id === snapshot.currentNodeId
     const isPath = activePathNodeIds.has(node.id)
     const isSelected = selectedNodeIds.has(node.id)
+    const isHighlighted = highlightedNodeIds.has(node.id)
 
     return {
       id: node.id,
@@ -76,10 +79,12 @@ export function toFlowElements(
         providerInfo: node.providerInfo,
         isCurrent,
         isPath,
-        isSelected
+        isSelected,
+        isHighlighted
       },
-      draggable: false,
-      selectable: true
+      draggable: true,
+      selectable: true,
+      selected: isSelected
     }
   })
 

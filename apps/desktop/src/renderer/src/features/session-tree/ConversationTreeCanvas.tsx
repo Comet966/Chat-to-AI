@@ -3,14 +3,19 @@ import {
   Background,
   ReactFlow,
   ReactFlowProvider,
+  useNodesState,
   useReactFlow,
   type Edge,
   type Node,
+  type NodeMouseHandler,
+  type OnNodeDrag,
   type OnSelectionChangeParams
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { ConversationTreeNode } from './ConversationTreeNode.js'
 import type { ConversationTreeNodeData } from './mapping/to-flow-elements.js'
+
+type ConversationFlowNode = Node<ConversationTreeNodeData>
 
 export interface ConversationTreeCanvasHandle {
   fitView: () => void
@@ -18,7 +23,7 @@ export interface ConversationTreeCanvasHandle {
 }
 
 export interface ConversationTreeCanvasProps {
-  nodes: Node<ConversationTreeNodeData>[]
+  nodes: ConversationFlowNode[]
   edges: Edge[]
   currentNodeId: string
   onNodeClick: (nodeId: string, isMulti: boolean) => void
@@ -62,7 +67,32 @@ const InnerCanvas = React.forwardRef<ConversationTreeCanvasHandle, InnerCanvasPr
     ref
   ) {
     const { fitView, setCenter, getNode } = useReactFlow()
+    const [renderedNodes, setRenderedNodes, onNodesChange] =
+      useNodesState<ConversationFlowNode>(nodes)
+    const [hoveredNodeId, setHoveredNodeId] = React.useState<string | null>(null)
     const hasInitializedFitView = useRef(false)
+    const draggedPositions = useRef(new Map<string, { x: number; y: number }>())
+
+    // Keep domain-driven node data in sync while retaining positions changed by
+    // the user. Drag coordinates are deliberately presentation-only.
+    useEffect(() => {
+      const incomingIds = new Set(nodes.map((node) => node.id))
+      for (const nodeId of draggedPositions.current.keys()) {
+        if (!incomingIds.has(nodeId)) draggedPositions.current.delete(nodeId)
+      }
+
+      setRenderedNodes((currentNodes) => {
+        const currentById = new Map(currentNodes.map((node) => [node.id, node]))
+        return nodes.map((node) => {
+          const currentNode = currentById.get(node.id)
+          return {
+            ...node,
+            position: draggedPositions.current.get(node.id) ?? node.position,
+            measured: currentNode?.measured ?? node.measured
+          }
+        })
+      })
+    }, [nodes, setRenderedNodes])
 
     const handleFitView = useCallback(() => {
       fitView({ padding: 0.2, duration: 300 })
@@ -120,18 +150,40 @@ const InnerCanvas = React.forwardRef<ConversationTreeCanvasHandle, InnerCanvasPr
       [onSelectionChange]
     )
 
+    const handleNodeDragStop = useCallback<OnNodeDrag<ConversationFlowNode>>((_event, node) => {
+      draggedPositions.current.set(node.id, { ...node.position })
+    }, [])
+
+    const handleNodeMouseEnter = useCallback<NodeMouseHandler<ConversationFlowNode>>(
+      (_event, node) => setHoveredNodeId(node.id),
+      []
+    )
+
+    const handleNodeMouseLeave = useCallback<NodeMouseHandler<ConversationFlowNode>>(
+      (_event, node) => {
+        setHoveredNodeId((currentId) => (currentId === node.id ? null : currentId))
+      },
+      []
+    )
+
+    const hoveredNode = renderedNodes.find((node) => node.id === hoveredNodeId)
+
     const proOptions = useMemo(() => ({ hideAttribution: true }), [])
 
     return (
       <div className="tree-canvas-wrapper" data-testid="tree-canvas-wrapper">
         <ReactFlow
-          nodes={nodes}
+          nodes={renderedNodes}
           edges={edges}
           nodeTypes={nodeTypes}
+          onNodesChange={onNodesChange}
           onNodeClick={handleNodeClick}
+          onNodeDragStop={handleNodeDragStop}
+          onNodeMouseEnter={handleNodeMouseEnter}
+          onNodeMouseLeave={handleNodeMouseLeave}
           onPaneClick={onPaneClick}
           onSelectionChange={handleSelectionChange}
-          nodesDraggable={false}
+          nodesDraggable={true}
           nodesConnectable={false}
           elementsSelectable={true}
           selectionOnDrag={true}
@@ -143,6 +195,23 @@ const InnerCanvas = React.forwardRef<ConversationTreeCanvasHandle, InnerCanvasPr
         >
           <Background color="var(--color-border)" gap={20} size={1} />
         </ReactFlow>
+
+        {hoveredNode && (
+          <div className="tree-node-tooltip" role="tooltip">
+            <div className="tree-node-tooltip-header">
+              <span>
+                {hoveredNode.data.role} · #{hoveredNode.data.sequence}
+              </span>
+              {hoveredNode.data.isCurrent && <span>当前节点</span>}
+            </div>
+            <p className="tree-node-tooltip-content">{hoveredNode.data.content}</p>
+            {hoveredNode.data.providerInfo && (
+              <p className="tree-node-tooltip-model">
+                {hoveredNode.data.providerInfo.provider} / {hoveredNode.data.providerInfo.modelId}
+              </p>
+            )}
+          </div>
+        )}
       </div>
     )
   }
