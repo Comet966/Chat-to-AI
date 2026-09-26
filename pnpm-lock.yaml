@@ -61,7 +61,7 @@ importers:
         version: 19.3.0(react@19.3.0)
       zustand:
         specifier: 5.0.15
-        version: 5.0.15(@types/react@19.3.0)(react@19.3.0)
+        version: 5.0.15(@types/react@19.3.0)(react@19.3.0)(use-sync-external-store@1.7.0(react@19.3.0))
     devDependencies:
       '@types/react':
         specifier: 19.3.0
@@ -90,6 +90,12 @@ importers:
       chat-contracts:
         specifier: workspace:*
         version: link:../../packages/chat-contracts
+      chat-conversation-runtime:
+        specifier: workspace:*
+        version: link:../../packages/conversation-runtime
+      chat-conversation-tree:
+        specifier: workspace:*
+        version: link:../../packages/conversation-tree
       chat-core:
         specifier: workspace:*
         version: link:../../packages/chat-core
@@ -3000,7 +3006,8 @@ snapshots:
       '@types/react': 19.3.0
       react: 19.3.0
 
-  zustand@5.0.15(@types/react@19.3.0)(react@19.3.0):
+  zustand@5.0.15(@types/react@19.3.0)(react@19.3.0)(use-sync-external-store@1.7.0(react@19.3.0)):
     optionalDependencies:
       '@types/react': 19.3.0
       react: 19.3.0
+      use-sync-external-store: 1.7.0(react@19.3.0)

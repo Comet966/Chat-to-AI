@@ -215,9 +215,11 @@ function checkConversationRuntimeSourceFiles() {
   })
 }
 
-function checkDesktopAndDebugRendererDoNotImportRuntimeOrTree() {
+function checkRendererAndPreloadDoNotImportRuntimeOrTree() {
   const forbiddenDirs = [
-    path.join(rootDir, 'apps', 'desktop', 'src'),
+    path.join(rootDir, 'apps', 'desktop', 'src', 'renderer'),
+    path.join(rootDir, 'apps', 'desktop', 'src', 'preload'),
+    path.join(rootDir, 'apps', 'desktop', 'src', 'shared'),
     path.join(rootDir, 'apps', 'debug-renderer', 'src')
   ]
 
@@ -236,7 +238,7 @@ function checkDesktopAndDebugRendererDoNotImportRuntimeOrTree() {
       for (const pkg of forbiddenPackages) {
         const importRegex = new RegExp(`from\\s+['"]${pkg}(/.*)?['"]|require\\(['"]${pkg}(/.*)?['"]\\)`, 'g')
         if (importRegex.test(content)) {
-          errors.push(`${relPath}: desktop and debug-renderer must not integrate "${pkg}" in this phase.`)
+          errors.push(`${relPath}: renderer, preload, shared contracts, and debug-renderer must not import "${pkg}".`)
         }
       }
     })
@@ -463,7 +465,7 @@ checkDebugRendererIfPresent()
 checkTestCliIfPresent()
 checkConversationTreeSourceFiles()
 checkConversationRuntimeSourceFiles()
-checkDesktopAndDebugRendererDoNotImportRuntimeOrTree()
+checkRendererAndPreloadDoNotImportRuntimeOrTree()
 checkCallersDoNotImportConcreteAdapters()
 checkDesktopRendererBoundaries()
 checkDesktopSharedBoundaries()
