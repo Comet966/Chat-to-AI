@@ -74,6 +74,9 @@ export class ConversationRuntimeService {
     }
 
     let streamStarted = false
+    let pendingUserNodeId: ConversationNodeId | null = null
+    let pendingBaseNodeId: ConversationNodeId | null = null
+    let pendingTreeVersion: number | null = null
 
     try {
       let baseNodeId: ConversationNodeId | null = null
@@ -107,8 +110,8 @@ export class ConversationRuntimeService {
         }
 
         baseNodeId = null
-        expectedVersionAfterUser = createTreeRes.value.version
-        this.cursorStore.set(command.treeId, userNodeId)
+      expectedVersionAfterUser = createTreeRes.value.version
+      this.cursorStore.set(command.treeId, userNodeId)
       } else {
         return {
           ok: false,
@@ -191,22 +194,38 @@ export class ConversationRuntimeService {
       this.cursorStore.set(command.treeId, userNodeId)
       }
 
-      // Retrieve unique root-to-user path
-      const pathRes = await this.treeService.getPathToNode(command.treeId, userNodeId)
-      if (!pathRes.ok) {
-        return {
-          ok: false,
-          error: createRuntimeError(
-            'INTERNAL_ERROR',
-            `Failed to get path to node "${userNodeId}": ${pathRes.error.message}`
-          )
-        }
+      pendingUserNodeId = userNodeId
+      pendingBaseNodeId = baseNodeId
+      pendingTreeVersion = expectedVersionAfterUser
+
+      const contextNodesRes = await this.resolveContextNodes(
+        command,
+        userNodeId,
+        baseNodeId
+      )
+      if (!contextNodesRes.ok) {
+        const rollbackRes = await this.rollbackPendingUser(
+          command.treeId,
+          userNodeId,
+          baseNodeId,
+          expectedVersionAfterUser
+        )
+        pendingUserNodeId = null
+        pendingTreeVersion = null
+        return rollbackRes.ok ? contextNodesRes : rollbackRes
       }
 
-      // Build chat context
-      const contextRes = buildChatContext(pathRes.value)
+      const contextRes = buildChatContext(contextNodesRes.value)
       if (!contextRes.ok) {
-        return contextRes
+        const rollbackRes = await this.rollbackPendingUser(
+          command.treeId,
+          userNodeId,
+          baseNodeId,
+          expectedVersionAfterUser
+        )
+        pendingUserNodeId = null
+        pendingTreeVersion = null
+        return rollbackRes.ok ? contextRes : rollbackRes
       }
 
       const assistantNodeId = this.idGenerator.nextAssistantNodeId()
@@ -222,6 +241,51 @@ export class ConversationRuntimeService {
       return new Promise<ConversationRuntimeResult<CompletedConversationTurn>>((resolve) => {
       let terminalHandled = false
       let accumulatedText = ''
+
+      const finishUnsuccessfulTurn = async (
+        error: ReturnType<typeof createRuntimeError>,
+        terminalEvent: 'failed' | 'cancelled'
+      ): Promise<void> => {
+        const rollbackRes = await this.rollbackPendingUser(
+          command.treeId,
+          userNodeId,
+          baseNodeId,
+          expectedVersionAfterUser
+        )
+        pendingUserNodeId = null
+        pendingTreeVersion = null
+        this.activeTurnRegistry.release(command.treeId, requestId)
+
+        if (!rollbackRes.ok) {
+          sink.emit({
+            type: 'conversation.turn.failed',
+            treeId: command.treeId,
+            requestId,
+            userNodeId,
+            error: rollbackRes.error
+          })
+          resolve(rollbackRes)
+          return
+        }
+
+        if (terminalEvent === 'cancelled') {
+          sink.emit({
+            type: 'conversation.turn.cancelled',
+            treeId: command.treeId,
+            requestId,
+            userNodeId
+          })
+        } else {
+          sink.emit({
+            type: 'conversation.turn.failed',
+            treeId: command.treeId,
+            requestId,
+            userNodeId,
+            error
+          })
+        }
+        resolve({ ok: false, error })
+      }
 
       const executorSink: StreamingChatEventSink = {
         emit: (event) => {
@@ -245,19 +309,11 @@ export class ConversationRuntimeService {
             terminalHandled = true
 
             if (accumulatedText.trim() === '') {
-              this.activeTurnRegistry.release(command.treeId, requestId)
               const err = createRuntimeError(
                 'EMPTY_MODEL_RESPONSE',
                 'Model returned empty response content'
               )
-              sink.emit({
-                type: 'conversation.turn.failed',
-                treeId: command.treeId,
-                requestId,
-                userNodeId,
-                error: err
-              })
-              resolve({ ok: false, error: err })
+              void finishUnsuccessfulTurn(err, 'failed')
               return
             }
 
@@ -276,9 +332,7 @@ export class ConversationRuntimeService {
                   }
                 }
               })
-              .then((appendAssistantRes) => {
-                this.activeTurnRegistry.release(command.treeId, requestId)
-
+              .then(async (appendAssistantRes) => {
                 if (!appendAssistantRes.ok) {
                   const errorCode: ConversationRuntimeErrorCode =
                     appendAssistantRes.error.code === 'VERSION_CONFLICT'
@@ -289,19 +343,32 @@ export class ConversationRuntimeService {
                     `Failed to persist assistant message to tree: ${appendAssistantRes.error.message}`,
                     appendAssistantRes.error.details
                   )
+                  const rollbackRes = await this.rollbackPendingUser(
+                    command.treeId,
+                    userNodeId,
+                    baseNodeId,
+                    expectedVersionAfterUser
+                  )
+                  pendingUserNodeId = null
+                  pendingTreeVersion = null
+                  const finalError = rollbackRes.ok ? err : rollbackRes.error
+                  this.activeTurnRegistry.release(command.treeId, requestId)
                   sink.emit({
                     type: 'conversation.turn.failed',
                     treeId: command.treeId,
                     requestId,
                     userNodeId,
-                    error: err
+                    error: finalError
                   })
-                  resolve({ ok: false, error: err })
+                  resolve({ ok: false, error: finalError })
                   return
                 }
 
                 const finalTreeVersion = appendAssistantRes.value.version
                 this.cursorStore.set(command.treeId, assistantNodeId)
+                pendingUserNodeId = null
+                pendingTreeVersion = null
+                this.activeTurnRegistry.release(command.treeId, requestId)
 
                 sink.emit({
                   type: 'conversation.turn.completed',
@@ -331,36 +398,20 @@ export class ConversationRuntimeService {
           } else if (event.type === 'chat.stream.cancelled') {
             if (terminalHandled) return
             terminalHandled = true
-            this.activeTurnRegistry.release(command.treeId, requestId)
-
-            sink.emit({
-              type: 'conversation.turn.cancelled',
-              treeId: command.treeId,
-              requestId,
-              userNodeId
-            })
-            resolve({
-              ok: false,
-              error: createRuntimeError('MODEL_REQUEST_CANCELLED', 'Model request was cancelled')
-            })
+            void finishUnsuccessfulTurn(
+              createRuntimeError('MODEL_REQUEST_CANCELLED', 'Model request was cancelled'),
+              'cancelled'
+            )
           } else if (event.type === 'chat.stream.failed') {
             if (terminalHandled) return
             terminalHandled = true
-            this.activeTurnRegistry.release(command.treeId, requestId)
 
             const err = createRuntimeError(
               'MODEL_REQUEST_FAILED',
               event.error.message,
               event.error as unknown as Record<string, unknown>
             )
-            sink.emit({
-              type: 'conversation.turn.failed',
-              treeId: command.treeId,
-              requestId,
-              userNodeId,
-              error: err
-            })
-            resolve({ ok: false, error: err })
+            void finishUnsuccessfulTurn(err, 'failed')
           }
         }
       }
@@ -378,42 +429,37 @@ export class ConversationRuntimeService {
         .then((startRes) => {
           if (!startRes.accepted && !terminalHandled) {
             terminalHandled = true
-            this.activeTurnRegistry.release(command.treeId, requestId)
             const err = createRuntimeError(
               'MODEL_REQUEST_REJECTED',
               `Model request was rejected: ${startRes.error.message}`,
               startRes.error as unknown as Record<string, unknown>
             )
-            sink.emit({
-              type: 'conversation.turn.failed',
-              treeId: command.treeId,
-              requestId,
-              userNodeId,
-              error: err
-            })
-            resolve({ ok: false, error: err })
+            void finishUnsuccessfulTurn(err, 'failed')
           }
         })
         .catch((err: unknown) => {
           if (terminalHandled) return
           terminalHandled = true
-          this.activeTurnRegistry.release(command.treeId, requestId)
           const msg = err instanceof Error ? err.message : String(err)
           const runtimeErr = createRuntimeError(
             'INTERNAL_ERROR',
             `Unexpected error starting model stream: ${msg}`
           )
-          sink.emit({
-            type: 'conversation.turn.failed',
-            treeId: command.treeId,
-            requestId,
-            userNodeId,
-            error: runtimeErr
-          })
-          resolve({ ok: false, error: runtimeErr })
+          void finishUnsuccessfulTurn(runtimeErr, 'failed')
         })
       })
     } catch (err: unknown) {
+      if (pendingUserNodeId && pendingTreeVersion !== null) {
+        const rollbackRes = await this.rollbackPendingUser(
+          command.treeId,
+          pendingUserNodeId,
+          pendingBaseNodeId,
+          pendingTreeVersion
+        )
+        if (!rollbackRes.ok) {
+          return rollbackRes
+        }
+      }
       const msg = err instanceof Error ? err.message : String(err)
       return {
         ok: false,
@@ -424,6 +470,148 @@ export class ConversationRuntimeService {
         this.activeTurnRegistry.release(command.treeId, requestId)
       }
     }
+  }
+
+  private async resolveContextNodes(
+    command: SendConversationMessageCommand,
+    userNodeId: ConversationNodeId,
+    baseNodeId: ConversationNodeId | null
+  ): Promise<ConversationRuntimeResult<readonly ConversationNode[]>> {
+    const selection = command.contextSelection ?? { mode: 'root-path' as const }
+
+    if (selection.mode === 'root-path') {
+      const pathRes = await this.treeService.getPathToNode(command.treeId, userNodeId)
+      if (!pathRes.ok) {
+        return {
+          ok: false,
+          error: createRuntimeError(
+            'INTERNAL_ERROR',
+            `Failed to get path to node "${userNodeId}": ${pathRes.error.message}`
+          )
+        }
+      }
+      return pathRes
+    }
+
+    if (new Set(selection.nodeIds).size !== selection.nodeIds.length) {
+      return {
+        ok: false,
+        error: createRuntimeError(
+          'INVALID_CONTEXT_SELECTION',
+          'Explicit context node IDs must not contain duplicates'
+        )
+      }
+    }
+
+    if (selection.nodeIds.length === 0 && baseNodeId !== null) {
+      return {
+        ok: false,
+        error: createRuntimeError(
+          'INVALID_CONTEXT_SELECTION',
+          'Explicit context must include at least one complete conversation turn'
+        )
+      }
+    }
+
+    if (selection.nodeIds.length % 2 !== 0) {
+      return {
+        ok: false,
+        error: createRuntimeError(
+          'INVALID_CONTEXT_SELECTION',
+          'Explicit context must contain complete user and assistant message pairs'
+        )
+      }
+    }
+
+    const nodes: ConversationNode[] = []
+    for (const nodeId of selection.nodeIds) {
+      const nodeRes = await this.treeService.getNode(command.treeId, nodeId)
+      if (!nodeRes.ok) {
+        return {
+          ok: false,
+          error: createRuntimeError(
+            'NODE_NOT_FOUND',
+            `Context node "${nodeId}" not found in tree "${command.treeId}"`
+          )
+        }
+      }
+      nodes.push(nodeRes.value)
+    }
+
+    for (let index = 0; index < nodes.length; index += 2) {
+      const userNode = nodes[index]
+      const assistantNode = nodes[index + 1]
+      if (
+        userNode.role !== 'user' ||
+        assistantNode.role !== 'assistant' ||
+        assistantNode.parentId !== userNode.id
+      ) {
+        return {
+          ok: false,
+          error: createRuntimeError(
+            'INVALID_CONTEXT_SELECTION',
+            'Explicit context must be an ordered list of complete user and assistant pairs'
+          )
+        }
+      }
+    }
+
+    const promptNodeRes = await this.treeService.getNode(command.treeId, userNodeId)
+    if (!promptNodeRes.ok) {
+      return {
+        ok: false,
+        error: createRuntimeError(
+          'INTERNAL_ERROR',
+          `Failed to read current prompt node "${userNodeId}"`
+        )
+      }
+    }
+
+    return { ok: true, value: [...nodes, promptNodeRes.value] }
+  }
+
+  private async rollbackPendingUser(
+    treeId: ConversationTreeId,
+    userNodeId: ConversationNodeId,
+    baseNodeId: ConversationNodeId | null,
+    expectedVersion: number
+  ): Promise<ConversationRuntimeResult<void>> {
+    if (baseNodeId === null) {
+      const deleteTreeRes = await this.treeService.deleteTree({ treeId, expectedVersion })
+      if (!deleteTreeRes.ok) {
+        return {
+          ok: false,
+          error: createRuntimeError(
+            deleteTreeRes.error.code === 'VERSION_CONFLICT'
+              ? 'TREE_VERSION_CONFLICT'
+              : 'INTERNAL_ERROR',
+            `Failed to roll back incomplete root turn: ${deleteTreeRes.error.message}`
+          )
+        }
+      }
+      this.cursorStore.delete(treeId)
+      return { ok: true, value: undefined }
+    }
+
+    const deleteNodeRes = await this.treeService.deleteNode({
+      treeId,
+      expectedVersion,
+      nodeId: userNodeId,
+      mode: 'leaf-only'
+    })
+    if (!deleteNodeRes.ok) {
+      return {
+        ok: false,
+        error: createRuntimeError(
+          deleteNodeRes.error.code === 'VERSION_CONFLICT'
+            ? 'TREE_VERSION_CONFLICT'
+            : 'INTERNAL_ERROR',
+          `Failed to roll back incomplete turn: ${deleteNodeRes.error.message}`
+        )
+      }
+    }
+    this.cursorStore.set(treeId, baseNodeId)
+    return { ok: true, value: undefined }
   }
 
   public async selectNode(
