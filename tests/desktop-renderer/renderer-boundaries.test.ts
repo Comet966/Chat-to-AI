@@ -74,6 +74,27 @@ describe('Desktop Renderer Architecture Boundaries', () => {
     })
   })
 
+  it('should not import xyflow, dagre, electron, or core in UI port code', () => {
+    const portsDir = path.join(rootDir, 'apps/desktop/src/renderer/src/ports')
+    const forbiddenPortImports = [
+      '@xyflow/react',
+      '@dagrejs/dagre',
+      'electron',
+      'chat-core',
+      'chat-conversation-tree',
+      'chat-conversation-runtime',
+      'chat-model-adapters'
+    ]
+
+    scanFiles(portsDir, (file, content) => {
+      const relPath = path.relative(rootDir, file)
+      for (const forbidden of forbiddenPortImports) {
+        const regex = new RegExp(`from\\s+['"]${forbidden}(/.*)?['"]`, 'g')
+        expect(regex.test(content), `${relPath} must not import ${forbidden}`).toBe(false)
+      }
+    })
+  })
+
   it('should not use JSX inline styles in renderer components (CSP compliance)', () => {
     const rendererDir = path.join(rootDir, 'apps/desktop/src/renderer')
 

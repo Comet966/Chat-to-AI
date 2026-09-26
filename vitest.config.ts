@@ -9,6 +9,7 @@ export default defineConfig({
     environmentMatchGlobs: [
       ['tests/desktop-renderer/**', 'jsdom']
     ],
+    setupFiles: ['tests/setup-jsdom.ts'],
     globals: true,
     include: ['tests/**/*.test.ts', 'tests/**/*.test.tsx']
   },
