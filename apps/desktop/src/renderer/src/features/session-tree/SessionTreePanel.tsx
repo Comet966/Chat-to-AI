@@ -34,6 +34,7 @@ export function SessionTreePanel({
   onInheritanceSelectionChange
 }: SessionTreePanelProps) {
   const ports = usePorts()
+  const isRealRuntime = ports.runtimeMode === 'real'
   const port = useMemo(
     () => ports.conversationTree ?? new DemoConversationTreeUiAdapter(),
     [ports.conversationTree]
@@ -140,10 +141,10 @@ export function SessionTreePanel({
   const canSetCurrent = Boolean(
     singleSelected && singleSelected.id !== state.snapshot?.currentNodeId
   )
-  const canAddChild = Boolean(singleSelected)
+  const canAddChild = Boolean(singleSelected) && !isRealRuntime
   const deletableSelectedNodes = selectedNodes.filter((node) => node.id !== state.snapshot?.rootId)
   const protectedRootSelected = deletableSelectedNodes.length !== selectedNodes.length
-  const canDelete = deletableSelectedNodes.length > 0
+  const canDelete = deletableSelectedNodes.length > 0 && !isRealRuntime
 
   // Canvas callbacks
   const handleNodeClick = useCallback(

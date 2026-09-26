@@ -7,6 +7,7 @@ export interface AppPorts {
   providerSettings: ProviderSettingsPort
   chatUi: ChatUiPort
   conversationTree: ConversationTreeUiPort
+  runtimeMode?: 'real' | 'preview' | 'unavailable'
 }
 
 const PortsContext = createContext<AppPorts | null>(null)

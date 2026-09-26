@@ -2,7 +2,8 @@ import type {
   ChatUiMessage,
   ChatUiPort,
   ChatUiResult,
-  ChatUiState
+  ChatUiState,
+  SendChatMessageInput
 } from '../ports/chat-ui.port.js'
 
 export class DemoChatUiAdapter implements ChatUiPort {
@@ -37,7 +38,8 @@ export class DemoChatUiAdapter implements ChatUiPort {
     }
   }
 
-  public async sendMessage(content: string): Promise<ChatUiResult<void>> {
+  public async sendMessage(input: SendChatMessageInput): Promise<ChatUiResult<void>> {
+    const content = input.content
     const trimmed = content.trim()
     if (!trimmed) {
       return {

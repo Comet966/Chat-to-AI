@@ -3,9 +3,10 @@ import React from 'react'
 export interface ChatHeaderProps {
   provider: string
   modelId: string
+  runtimeMode: 'real' | 'preview' | 'unavailable'
 }
 
-export function ChatHeader({ provider, modelId }: ChatHeaderProps) {
+export function ChatHeader({ provider, modelId, runtimeMode }: ChatHeaderProps) {
   return (
     <header className="chat-header">
       <div className="chat-header-info">
@@ -15,7 +16,11 @@ export function ChatHeader({ provider, modelId }: ChatHeaderProps) {
         </span>
       </div>
       <div className="chat-header-badge">
-        Demo Adapter Active
+        {runtimeMode === 'real'
+          ? 'Desktop Runtime Connected'
+          : runtimeMode === 'preview'
+            ? 'Demo Adapter Active'
+            : 'Desktop Runtime Unavailable'}
       </div>
     </header>
   )

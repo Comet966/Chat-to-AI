@@ -3,6 +3,8 @@ export type ChatUiStatus =
   | 'composing'
   | 'submitting-demo'
   | 'demo-completed'
+  | 'streaming'
+  | 'completed'
   | 'cancelled'
   | 'failed'
 
@@ -24,9 +26,19 @@ export type ChatUiResult<T> =
   | { ok: true; value: T }
   | { ok: false; error: { code: string; message: string } }
 
+export interface SendChatMessageInput {
+  content: string
+  expectedRevision: number
+  currentNodeId: string | null
+  contextSelection: {
+    mode: 'root-path' | 'manual'
+    nodeIds: readonly string[]
+  }
+}
+
 export interface ChatUiPort {
   getState(): ChatUiState
-  sendMessage(content: string): Promise<ChatUiResult<void>>
+  sendMessage(input: SendChatMessageInput): Promise<ChatUiResult<void>>
   cancel(): Promise<void>
   subscribe(listener: (state: ChatUiState) => void): () => void
 }

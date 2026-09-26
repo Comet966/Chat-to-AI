@@ -10,7 +10,7 @@ export interface ChatComposerProps {
 
 export function ChatComposer({ status, onSend, onCancel }: ChatComposerProps) {
   const [content, setContent] = useState('')
-  const isSubmitting = status === 'submitting-demo'
+  const isSubmitting = status === 'submitting-demo' || status === 'streaming'
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault()

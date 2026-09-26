@@ -29,6 +29,7 @@ export type ConversationTreeErrorCode =
   | 'ROOT_NODE_PROTECTED'
   | 'CANNOT_DELETE_ACTIVE'
   | 'INVARIANT_VIOLATION'
+  | 'NOT_IMPLEMENTED'
   | 'INTERNAL_ERROR'
 
 export interface ConversationTreeError {

@@ -76,7 +76,16 @@ export class ConversationTransport {
     if (!this.senderPolicy.isAllowedSender(event)) return this.unauthorized()
     const parsed = SetCurrentConversationTurnInputSchema.safeParse(payload)
     if (!parsed.success) return this.invalidPayload('Invalid set-current request')
-    return this.service.setCurrentTurn(parsed.data.turnId, parsed.data.expectedRevision)
+    const result = await this.service.setCurrentTurn(parsed.data.turnId, parsed.data.expectedRevision)
+    if (result.ok && !event.sender.isDestroyed()) {
+      event.sender.send(DESKTOP_IPC_CHANNELS.CONVERSATION_EVENT, {
+        type: 'conversation.snapshot.changed',
+        schemaVersion: 1,
+        treeId: result.value.treeId,
+        snapshot: result.value
+      })
+    }
+    return result
   }
 
   public async handleStartTurn(
