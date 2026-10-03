@@ -10,6 +10,7 @@ export interface ConversationTreeNodeDto {
   question: string
   /** Assistant output for this complete conversation turn. */
   answer: string
+  /** Zero-based display/order index for a complete conversation turn. */
   sequence: number
   createdAt: string
   providerInfo?: ConversationNodeProviderInfo

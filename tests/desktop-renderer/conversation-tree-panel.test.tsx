@@ -117,7 +117,7 @@ describe('SessionTreePanel Interactive Component', () => {
 
     await screen.findByText('当前 · 5')
 
-    const u1Node = screen.getByTestId('tree-node-node-u1')
+    const u1Node = await screen.findByTestId('tree-node-node-u1')
     fireEvent.click(u1Node)
 
     expect(await screen.findByText('已选 1 项')).toBeDefined()
@@ -138,7 +138,7 @@ describe('SessionTreePanel Interactive Component', () => {
 
     await screen.findByText('当前 · 5')
 
-    const rootNode = screen.getByTestId('tree-node-node-root')
+    const rootNode = await screen.findByTestId('tree-node-node-root')
     fireEvent.click(rootNode)
 
     expect(await screen.findByText('已选 1 项')).toBeDefined()

@@ -69,7 +69,7 @@ describe('Electron renderer conversation adapters', () => {
         treeId: 'tree-1', revision: 2, rootTurnId: 'a1', currentTurnId: 'a1',
         turns: [{
           id: 'a1', parentId: null, question: 'Question', answer: 'Part 1 Part 2',
-          sequence: 1, createdAt: '2026-01-01T00:00:00.000Z'
+          sequence: 0, createdAt: '2026-01-01T00:00:00.000Z'
         }]
       }
     })
@@ -86,7 +86,7 @@ describe('Electron renderer conversation adapters', () => {
     const bridge = createConversationApi({
       treeId: 'tree-1', revision: 2, rootTurnId: 'a1', currentTurnId: 'a1',
       turns: [{
-        id: 'a1', parentId: null, question: 'Q1', answer: 'A1', sequence: 1,
+        id: 'a1', parentId: null, question: 'Q1', answer: 'A1', sequence: 0,
         createdAt: '2026-01-01T00:00:00.000Z'
       }]
     })

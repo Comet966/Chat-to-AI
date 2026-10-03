@@ -44,12 +44,12 @@ describe('projectConversationTurns', () => {
     })
     expect(projected.value.snapshot.turns).toEqual([
       {
-        id: 'a1', parentId: null, question: 'Q1', answer: 'A1', sequence: 1,
+        id: 'a1', parentId: null, question: 'Q1', answer: 'A1', sequence: 0,
         createdAt: '2026-01-01T00:01:00.000Z',
         providerInfo: { provider: 'anthropic', modelId: 'claude-test' }
       },
       {
-        id: 'a2', parentId: 'a1', question: 'Q2', answer: 'A2', sequence: 3,
+        id: 'a2', parentId: 'a1', question: 'Q2', answer: 'A2', sequence: 1,
         createdAt: '2026-01-01T00:03:00.000Z'
       }
     ])

@@ -8,6 +8,7 @@ export interface ConversationTurnDto {
   parentId: string | null
   question: string
   answer: string
+  /** Stable zero-based ordinal among completed question/answer turns. */
   sequence: number
   createdAt: string
   providerInfo?: ConversationTurnProviderInfoDto

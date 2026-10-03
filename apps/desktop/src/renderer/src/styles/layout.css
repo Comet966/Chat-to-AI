@@ -3,6 +3,7 @@
   height: 100vh;
   width: 100vw;
   overflow: hidden;
+  background-color: var(--color-canvas);
 }
 
 /* Icon Rail Navigation */
@@ -10,13 +11,14 @@
   width: 60px;
   min-width: 60px;
   max-width: 60px;
-  background-color: var(--color-surface);
+  background-color: var(--color-sidebar);
   border-right: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
   align-items: center;
   flex-shrink: 0;
   height: 100%;
+  z-index: 10;
 }
 
 .nav-brand {
@@ -41,14 +43,16 @@
 }
 
 .nav-item {
-  width: 44px;
-  height: 44px;
+  width: 42px;
+  height: 42px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-md);
   color: var(--color-text-secondary);
-  transition: background-color 0.15s ease, color 0.15s ease;
+  transition: background-color var(--duration-fast) var(--ease-standard),
+              color var(--duration-fast) var(--ease-standard),
+              box-shadow var(--duration-fast) var(--ease-standard);
   position: relative;
 }
 
@@ -58,8 +62,9 @@
 }
 
 .nav-item.active {
-  background-color: var(--color-primary);
-  color: var(--color-primary-text);
+  background-color: var(--color-surface-raised);
+  color: var(--color-primary);
+  box-shadow: var(--shadow-sm);
 }
 
 .nav-item:focus-visible {
@@ -76,14 +81,15 @@
   min-width: 0;
   overflow: hidden;
   position: relative;
+  background-color: var(--color-canvas);
 }
 
 .preview-banner {
-  background-color: var(--color-info-bg);
-  border-bottom: 1px solid var(--color-info);
-  color: var(--color-info);
+  background-color: var(--color-preview-bg);
+  border-bottom: 1px solid var(--color-preview-border);
+  color: var(--color-preview-text);
   padding: var(--space-2) var(--space-4);
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   font-weight: 500;
   text-align: center;
   flex-shrink: 0;
@@ -106,13 +112,14 @@
   width: 100%;
   min-width: 0;
   overflow: hidden;
+  background-color: var(--color-canvas);
 }
 
-/* Session Tree Placeholder Panel */
+/* Session Tree Panel */
 .session-tree-panel {
-  min-width: 260px;
+  min-width: 320px;
   border-right: 1px solid var(--color-border);
-  background-color: var(--color-surface);
+  background-color: var(--color-sidebar);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -129,7 +136,7 @@
 }
 
 .session-tree-title {
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   font-weight: 600;
   color: var(--color-text-primary);
 }
@@ -153,7 +160,7 @@
 
 .session-tree-placeholder-text {
   color: var(--color-text-muted);
-  font-size: 0.9rem;
+  font-size: 0.88rem;
 }
 
 /* Conversation Panel */
@@ -164,12 +171,13 @@
   height: 100%;
   min-width: 0;
   overflow: hidden;
+  background-color: var(--color-canvas);
 }
 
 .chat-header {
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-3) var(--space-6);
   border-bottom: 1px solid var(--color-border);
-  background-color: var(--color-surface);
+  background-color: var(--color-canvas);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -184,38 +192,45 @@
 }
 
 .chat-header-title {
-  font-size: 1.1rem;
-  font-weight: 600;
+  font-size: 1.05rem;
+  font-weight: 650;
   color: var(--color-text-primary);
 }
 
 .chat-header-subtitle {
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   color: var(--color-text-secondary);
 }
 
 .chat-header-badge {
-  font-size: 0.8rem;
-  background-color: var(--color-warning-bg);
-  color: var(--color-warning);
-  padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  background-color: var(--color-surface-soft);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
   font-weight: 500;
 }
 
 .chat-notice-wrapper {
   padding: var(--space-2) var(--space-6);
   flex-shrink: 0;
+  max-width: 860px;
+  width: 100%;
+  margin: 0 auto;
 }
 
 /* Message List */
 .message-list {
   flex: 1;
   overflow-y: auto;
-  padding: var(--space-6);
+  padding: var(--space-6) var(--space-6) var(--space-4);
   display: flex;
   flex-direction: column;
   min-width: 0;
+  max-width: 860px;
+  width: 100%;
+  margin: 0 auto;
 }
 
 .message-list-empty {
@@ -226,25 +241,29 @@
   justify-content: center;
   color: var(--color-text-muted);
   text-align: center;
-  padding: var(--space-6);
+  padding: var(--space-8) var(--space-6);
 }
 
 .empty-title {
-  font-size: 1.2rem;
-  font-weight: 600;
+  font-family: var(--font-serif);
+  font-size: 1.5rem;
+  font-weight: 500;
+  color: var(--color-text-primary);
   margin-bottom: var(--space-2);
 }
 
 .empty-desc {
-  max-width: 400px;
-  font-size: 0.9rem;
+  max-width: 440px;
+  font-size: 0.92rem;
+  color: var(--color-text-secondary);
+  line-height: 1.6;
 }
 
 /* Message Item */
 .message-item {
   display: flex;
   flex-direction: column;
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-6);
   width: 100%;
 }
 
@@ -257,60 +276,68 @@
 }
 
 .message-bubble {
-  max-width: 75%;
-  border-radius: var(--radius-lg);
-  padding: var(--space-3) var(--space-4);
+  max-width: 82%;
   word-break: break-word;
   white-space: pre-wrap;
 }
 
 .message-bubble-user {
-  background-color: var(--color-primary);
-  color: var(--color-primary-text);
-  border: none;
+  background-color: var(--color-user-message);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: var(--space-3) var(--space-4);
 }
 
 .message-bubble-assistant {
-  background-color: var(--color-surface);
+  background-color: transparent;
   color: var(--color-text-primary);
-  border: 1px solid var(--color-border);
+  border: none;
+  padding: var(--space-1) 0;
+  max-width: 100%;
 }
 
 .message-meta {
   font-size: 0.75rem;
   margin-bottom: var(--space-1);
-  opacity: 0.8;
+  color: var(--color-text-muted);
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: var(--space-3);
 }
 
 .message-role {
   font-weight: 600;
+  color: var(--color-text-secondary);
 }
 
 .message-demo-badge {
   background-color: var(--color-warning-bg);
   color: var(--color-warning);
-  padding: 2px 4px;
-  border-radius: 2px;
-  font-size: 0.7rem;
+  border: 1px solid var(--color-warning-border-soft);
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
+  font-size: 0.68rem;
 }
 
 .message-content {
-  font-size: 0.95rem;
-  line-height: 1.5;
+  font-size: 0.96rem;
+  line-height: 1.62;
+  color: var(--color-text-primary);
 }
 
-/* Chat Composer */
+/* Chat Composer - Floating Card */
 .chat-composer {
-  padding: var(--space-4);
-  border-top: 1px solid var(--color-border);
-  background-color: var(--color-surface);
+  padding: var(--space-2) var(--space-6) var(--space-6);
+  background-color: transparent;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
   flex-shrink: 0;
+  width: 100%;
+  max-width: 860px;
+  margin: 0 auto;
 }
 
 .chat-composer-form {
@@ -318,6 +345,18 @@
   gap: var(--space-3);
   align-items: flex-end;
   width: 100%;
+  background-color: var(--color-surface-raised);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-xl);
+  padding: 10px 14px 10px 16px;
+  box-shadow: var(--shadow-float);
+  transition: border-color var(--duration-normal) var(--ease-standard),
+              box-shadow var(--duration-normal) var(--ease-standard);
+}
+
+.chat-composer-form:focus-within {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-float), 0 0 0 1px var(--color-primary);
 }
 
 .chat-composer-input-wrapper {
@@ -328,6 +367,20 @@
 .chat-composer-textarea {
   width: 100%;
   resize: none;
+  background-color: transparent;
+  border: none;
+  outline: none;
+  padding: 4px 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--color-text-primary);
+  min-height: 44px;
+}
+
+.chat-composer-textarea:focus {
+  border-color: transparent;
+  box-shadow: none;
+  outline: none;
 }
 
 .chat-composer-actions {
@@ -337,15 +390,24 @@
   flex-shrink: 0;
 }
 
+.chat-composer-actions .btn {
+  min-width: 68px;
+  height: 36px;
+  border-radius: var(--radius-full);
+  font-size: 0.88rem;
+  padding: 0 var(--space-4);
+}
+
 /* Provider Settings Page */
 .provider-settings-container {
-  max-width: 800px;
+  max-width: 640px;
   margin: 0 auto;
   width: 100%;
+  padding: var(--space-6) var(--space-4);
 }
 
 .settings-back-bar {
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-5);
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -354,19 +416,51 @@
 .settings-back-btn {
   font-size: 0.85rem;
   padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-full);
 }
 
 .card {
-  background-color: var(--color-surface);
+  background-color: var(--color-surface-raised);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  padding: var(--space-6);
+  border-radius: var(--radius-xl);
+  padding: var(--space-6) var(--space-8);
+  box-shadow: var(--shadow-card);
 }
 
 .card-title {
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-2);
   font-size: 1.25rem;
-  font-weight: 600;
+  font-weight: 650;
+  color: var(--color-text-primary);
+}
+
+.card-subtitle {
+  font-size: 0.88rem;
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-5);
+  line-height: 1.5;
+}
+
+.form-section {
+  display: flex;
+  flex-direction: column;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+  margin-bottom: var(--space-2);
+}
+
+.form-section:first-of-type {
+  padding-top: 0;
+  border-top: none;
+}
+
+.form-section-title {
+  font-size: 0.76rem;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-3);
 }
 
 .api-key-input-row {
@@ -381,7 +475,9 @@
 .form-actions {
   display: flex;
   gap: var(--space-3);
-  margin-top: var(--space-4);
+  margin-top: var(--space-6);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
 }
 
 /* Fields & Forms */
@@ -393,7 +489,7 @@
 }
 
 .field-label {
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   font-weight: 600;
   color: var(--color-text-primary);
 }
@@ -403,22 +499,30 @@
 }
 
 .field-input, .field-select, .field-textarea {
-  background-color: var(--color-bg);
-  border: 1px solid var(--color-border);
+  background-color: var(--color-canvas);
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-md);
-  padding: var(--space-2) var(--space-3);
+  padding: 8px 12px;
   color: var(--color-text-primary);
-  font-size: 0.95rem;
+  font-size: 0.92rem;
+  transition: border-color var(--duration-fast) var(--ease-standard),
+              box-shadow var(--duration-fast) var(--ease-standard);
 }
 
 .field-input:focus, .field-select:focus, .field-textarea:focus {
-  border-color: var(--color-border-focus);
+  border-color: var(--color-primary);
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-primary-subtle);
+}
+
+.field-input::placeholder, .field-textarea::placeholder {
+  color: var(--color-text-muted);
 }
 
 .field-error {
   color: var(--color-danger);
   font-size: 0.8rem;
-  margin-top: var(--space-1);
+  margin-top: 2px;
 }
 
 .field-hint {
@@ -431,17 +535,21 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: var(--space-2) var(--space-4);
+  padding: 8px 16px;
   border-radius: var(--radius-md);
-  font-weight: 600;
-  font-size: 0.9rem;
+  font-weight: 550;
+  font-size: 0.88rem;
   cursor: pointer;
   border: 1px solid transparent;
-  transition: background-color 0.15s ease, opacity 0.15s ease;
+  transition: background-color var(--duration-fast) var(--ease-standard),
+              color var(--duration-fast) var(--ease-standard),
+              border-color var(--duration-fast) var(--ease-standard),
+              opacity var(--duration-fast) var(--ease-standard);
+  user-select: none;
 }
 
 .btn:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
 }
 
@@ -454,58 +562,73 @@
   background-color: var(--color-primary-hover);
 }
 
+.btn-primary:active:not(:disabled) {
+  background-color: var(--color-primary-active);
+}
+
 .btn-secondary {
-  background-color: var(--color-surface-hover);
+  background-color: var(--color-surface-soft);
   color: var(--color-text-primary);
-  border-color: var(--color-border);
+  border-color: var(--color-border-strong);
 }
 
 .btn-secondary:hover:not(:disabled) {
+  background-color: var(--color-surface-hover);
+  border-color: var(--color-border-strong);
+}
+
+.btn-secondary:active:not(:disabled) {
   background-color: var(--color-surface-active);
 }
 
 .btn-danger {
   background-color: var(--color-danger-bg);
   color: var(--color-danger);
-  border-color: var(--color-danger);
+  border-color: var(--color-danger-border);
 }
 
 .btn-danger:hover:not(:disabled) {
   background-color: var(--color-danger);
-  color: #fff;
+  color: var(--color-primary-text);
+  border-color: var(--color-danger);
+}
+
+.btn-danger:active:not(:disabled) {
+  background-color: var(--color-danger-hover);
 }
 
 /* Status Notices */
 .status-notice {
-  padding: var(--space-3) var(--space-4);
+  padding: 10px 14px;
   border-radius: var(--radius-md);
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   margin-bottom: var(--space-4);
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  line-height: 1.45;
 }
 
 .status-notice-info {
   background-color: var(--color-info-bg);
-  color: var(--color-info);
-  border: 1px solid var(--color-info);
+  color: var(--color-info-text);
+  border: 1px solid var(--color-info-border);
 }
 
 .status-notice-warning {
   background-color: var(--color-warning-bg);
-  color: var(--color-warning);
-  border: 1px solid var(--color-warning);
+  color: var(--color-warning-text);
+  border: 1px solid var(--color-warning-border);
 }
 
 .status-notice-success {
   background-color: var(--color-success-bg);
-  color: var(--color-success);
-  border: 1px solid var(--color-success);
+  color: var(--color-success-text);
+  border: 1px solid var(--color-success-border);
 }
 
 .status-notice-danger {
   background-color: var(--color-danger-bg);
   color: var(--color-danger);
-  border: 1px solid var(--color-danger);
+  border: 1px solid var(--color-danger-border);
 }

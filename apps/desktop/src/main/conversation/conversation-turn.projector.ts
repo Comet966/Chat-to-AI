@@ -41,7 +41,7 @@ export function projectConversationTurns(
     .filter((node) => node.role === 'assistant')
     .sort((left, right) => left.sequence - right.sequence)
 
-  for (const assistant of assistants) {
+  for (const [turnSequence, assistant] of assistants.entries()) {
     if (!assistant.parentId) {
       return projectionFailure('Assistant message cannot be the root of a conversation turn')
     }
@@ -74,7 +74,9 @@ export function projectConversationTurns(
       parentId: parentTurnId,
       question: user.content,
       answer: assistant.content,
-      sequence: assistant.sequence,
+      // Core sequence counts individual messages. The desktop DTO counts
+      // complete question/answer turns, so expose a stable zero-based ordinal.
+      sequence: turnSequence,
       createdAt: assistant.createdAt,
       ...(assistant.generatedBy
         ? {
