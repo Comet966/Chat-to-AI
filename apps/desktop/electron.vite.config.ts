@@ -14,7 +14,9 @@ export default defineConfig({
     }
   },
   preload: {
-    plugins: [externalizeDepsPlugin()],
+    // Sandboxed preloads cannot load arbitrary external packages at runtime.
+    // Bundle contract validation dependencies and leave Electron itself external.
+    plugins: [externalizeDepsPlugin({ exclude: ['zod', 'chat-contracts'] })],
     build: {
       rollupOptions: {
         input: {
