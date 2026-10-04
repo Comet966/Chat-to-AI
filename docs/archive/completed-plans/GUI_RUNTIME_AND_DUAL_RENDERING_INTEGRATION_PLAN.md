@@ -1,12 +1,14 @@
 # GUI 前后端结合与 Markdown / HTML 双渲染模式实施计划
 
-> 文档状态：待执行
+> 文档状态：已完成并归档（2026-10-04）
 >
 > 编写日期：2026-10-04
 >
 > 执行基线：`feat/gui-runtime-integration`，基线提交 `0f0c3ff`（`gui-v0.1.0`）
 >
 > 实施范围：Electron Main、Preload 安全桥、Renderer Adapter、AI 对话界面、Markdown/HTML 消息渲染及测试
+
+> 完成记录：真实 Main / Preload / Renderer 流式链路、会话树投影、供应商运行时、Markdown/HTML 安全渲染、流中切换、Adapter 生命周期及 sandbox-compatible CommonJS preload 均已实现并验证。后续待办改由 `GUI_USABILITY_PROVIDER_AND_STRUCTURED_OUTPUT_PLAN.md` 覆盖。
 
 ## 1. 计划定位
 
