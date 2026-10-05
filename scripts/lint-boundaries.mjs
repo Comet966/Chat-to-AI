@@ -215,10 +215,19 @@ function checkConversationRuntimeSourceFiles() {
   })
 }
 
-function checkDesktopAndDebugRendererDoNotImportRuntimeOrTree() {
+function checkRendererAndPreloadDoNotImportRuntimeOrTree() {
   const forbiddenDirs = [
-    path.join(rootDir, 'apps', 'desktop', 'src'),
+    path.join(rootDir, 'apps', 'desktop', 'src', 'renderer'),
+    path.join(rootDir, 'apps', 'desktop', 'src', 'preload'),
+    path.join(rootDir, 'apps', 'desktop', 'src', 'shared'),
     path.join(rootDir, 'apps', 'debug-renderer', 'src')
+  ]
+
+  const forbiddenPackages = [
+    'chat-conversation-tree',
+    'conversation-tree',
+    'chat-conversation-runtime',
+    'conversation-runtime'
   ]
 
   for (const dir of forbiddenDirs) {
@@ -226,9 +235,11 @@ function checkDesktopAndDebugRendererDoNotImportRuntimeOrTree() {
       const content = fs.readFileSync(filePath, 'utf8')
       const relPath = path.relative(rootDir, filePath)
 
-      if (content.includes('chat-conversation-tree') || content.includes('conversation-tree') ||
-          content.includes('chat-conversation-runtime') || content.includes('conversation-runtime')) {
-        errors.push(`${relPath}: desktop and debug-renderer must not integrate conversation-tree or conversation-runtime in this phase.`)
+      for (const pkg of forbiddenPackages) {
+        const importRegex = new RegExp(`from\\s+['"]${pkg}(/.*)?['"]|require\\(['"]${pkg}(/.*)?['"]\\)`, 'g')
+        if (importRegex.test(content)) {
+          errors.push(`${relPath}: renderer, preload, shared contracts, and debug-renderer must not import "${pkg}".`)
+        }
       }
     })
   }
@@ -349,6 +360,101 @@ function checkCallersDoNotImportConcreteAdapters() {
   }
 }
 
+function checkDesktopRendererBoundaries() {
+  const rendererDir = path.join(rootDir, 'apps', 'desktop', 'src', 'renderer')
+  if (!fs.existsSync(rendererDir)) return
+
+  const forbiddenRendererImports = [
+    'electron',
+    'chat-core',
+    'chat-model-adapters',
+    'chat-conversation-tree',
+    'chat-conversation-runtime'
+  ]
+
+  scanDir(rendererDir, (filePath) => {
+    const content = fs.readFileSync(filePath, 'utf8')
+    const relPath = path.relative(rootDir, filePath)
+
+    for (const forbidden of forbiddenRendererImports) {
+      const regex = new RegExp(`from\\s+['"]${forbidden}(/.*)?['"]`, 'g')
+      if (regex.test(content)) {
+        errors.push(`${relPath}: desktop renderer must not import "${forbidden}"`)
+      }
+    }
+  })
+}
+
+function checkDesktopSharedBoundaries() {
+  const sharedDir = path.join(rootDir, 'apps', 'desktop', 'src', 'shared')
+  if (!fs.existsSync(sharedDir)) return
+
+  const forbiddenSharedImports = [
+    'electron',
+    'react',
+    'react-dom',
+    'node:fs',
+    'node:path',
+    'node:process',
+    'fs',
+    'path'
+  ]
+
+  scanDir(sharedDir, (filePath) => {
+    const content = fs.readFileSync(filePath, 'utf8')
+    const relPath = path.relative(rootDir, filePath)
+
+    for (const forbidden of forbiddenSharedImports) {
+      const regex = new RegExp(`from\\s+['"]${forbidden}(/.*)?['"]`, 'g')
+      if (regex.test(content)) {
+        errors.push(`${relPath}: desktop shared contract must not import "${forbidden}"`)
+      }
+    }
+  })
+}
+
+function checkDesktopMainDoesNotImportRenderer() {
+  const mainDir = path.join(rootDir, 'apps', 'desktop', 'src', 'main')
+  if (!fs.existsSync(mainDir)) return
+
+  scanDir(mainDir, (filePath) => {
+    const content = fs.readFileSync(filePath, 'utf8')
+    const relPath = path.relative(rootDir, filePath)
+
+    const importRegex = /from\s+['"][^'"]*renderer[^'"]*['"]/g
+    if (importRegex.test(content)) {
+      errors.push(`${relPath}: main process must not import from renderer`)
+    }
+  })
+}
+
+function checkDesktopPortBoundaries() {
+  const portsDir = path.join(rootDir, 'apps', 'desktop', 'src', 'renderer', 'src', 'ports')
+  if (!fs.existsSync(portsDir)) return
+
+  const forbiddenPortImports = [
+    '@xyflow/react',
+    '@dagrejs/dagre',
+    'electron',
+    'chat-core',
+    'chat-conversation-tree',
+    'chat-conversation-runtime',
+    'chat-model-adapters'
+  ]
+
+  scanDir(portsDir, (filePath) => {
+    const content = fs.readFileSync(filePath, 'utf8')
+    const relPath = path.relative(rootDir, filePath)
+
+    for (const forbidden of forbiddenPortImports) {
+      const regex = new RegExp(`from\\s+['"]${forbidden}(/.*)?['"]`, 'g')
+      if (regex.test(content)) {
+        errors.push(`${relPath}: UI port must not import "${forbidden}"`)
+      }
+    }
+  })
+}
+
 checkCorePackageJson()
 checkContractsPackageJson()
 checkModelAdaptersPackageJson()
@@ -359,8 +465,12 @@ checkDebugRendererIfPresent()
 checkTestCliIfPresent()
 checkConversationTreeSourceFiles()
 checkConversationRuntimeSourceFiles()
-checkDesktopAndDebugRendererDoNotImportRuntimeOrTree()
+checkRendererAndPreloadDoNotImportRuntimeOrTree()
 checkCallersDoNotImportConcreteAdapters()
+checkDesktopRendererBoundaries()
+checkDesktopSharedBoundaries()
+checkDesktopMainDoesNotImportRenderer()
+checkDesktopPortBoundaries()
 
 if (errors.length > 0) {
   console.error('Architecture boundary violations found:')

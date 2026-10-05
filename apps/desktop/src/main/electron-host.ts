@@ -1,41 +1,130 @@
 import { app, BrowserWindow, session } from 'electron'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { ChatKernel } from 'chat-core'
+import { ConversationRuntimeService, InMemoryConversationCursorStore } from 'chat-conversation-runtime'
+import { ConversationTreeService, InMemoryConversationTreeRepository } from 'chat-conversation-tree'
 import { createModelAdapter } from 'chat-model-adapters'
-import { loadAppConfig, type AppConfig } from './app-config.js'
+import {
+  loadAppConfig,
+  loadLocalDevProviderConfig,
+  type AppConfig
+} from './app-config.js'
+import { registerDesktopShellTransport } from './desktop-shell.transport.js'
+import {
+  DesktopConversationService,
+  MutableConversationModelProvider
+} from './conversation/desktop-conversation.service.js'
+import { registerConversationTransport } from './conversation/conversation.transport.js'
+import { ProviderRuntimeService } from './provider/provider-runtime.service.js'
+import { registerProviderTransport } from './provider/provider.transport.js'
 import { registerElectronChatTransport } from './electron-transport.js'
+import { NavigationPolicy } from './security/navigation-policy.js'
+import {
+  BROWSER_WINDOW_SECURITY_PREFERENCES,
+  buildContentSecurityPolicy
+} from './security/security-policy.js'
+import { SenderPolicy } from './security/sender-policy.js'
+
+import { GenerationPreferencesService } from './preferences/generation-preferences.service.js'
+import { registerPreferencesTransport } from './preferences/preferences.transport.js'
 
 export class ElectronHost {
   private mainWindow: BrowserWindow | null = null
   private kernel: ChatKernel | null = null
   private unregisterTransport: (() => void) | null = null
+  private unregisterShellTransport: (() => void) | null = null
+  private unregisterChatTransport: (() => void) | null = null
+  private unregisterConversationTransport: (() => void) | null = null
+  private unregisterProviderTransport: (() => void) | null = null
+  private unregisterPreferencesTransport: (() => void) | null = null
+  private conversationModelProvider: MutableConversationModelProvider | null = null
+  private navigationPolicy: NavigationPolicy | null = null
 
-  public async initialize(customConfig?: AppConfig): Promise<void> {
+  /**
+   * Initializes the desktop shell without requiring AI provider credentials.
+   */
+  public async initialize(rendererUrl?: string): Promise<void> {
+    const parsedRendererUrl = this.resolveRendererUrl(rendererUrl)
+    const allowedOrigins = [
+      parsedRendererUrl.protocol === 'file:'
+        ? parsedRendererUrl.href
+        : parsedRendererUrl.origin
+    ]
+
+    const senderPolicy = new SenderPolicy({ allowedOrigins })
+    this.unregisterShellTransport = registerDesktopShellTransport({ senderPolicy })
+
+    const treeService = new ConversationTreeService(new InMemoryConversationTreeRepository())
+    const runtime = new ConversationRuntimeService(
+      treeService,
+      new InMemoryConversationCursorStore()
+    )
+    this.conversationModelProvider = new MutableConversationModelProvider()
+    let initialProviderConfig: AppConfig['providerConfig'] | undefined
+    try {
+      initialProviderConfig = loadAppConfig().providerConfig
+    } catch {
+      // Provider configuration is optional. In explicitly enabled development
+      // mode, use the local test provider as the initial runtime.
+      if (!app.isPackaged) {
+        initialProviderConfig = loadLocalDevProviderConfig()?.providerConfig
+      }
+    }
+    const providerService = new ProviderRuntimeService({
+      modelProvider: this.conversationModelProvider,
+      initialConfig: initialProviderConfig,
+      hasActiveTurn: () => runtime.hasActiveTurn('desktop-conversation-default'),
+      isPackaged: app.isPackaged
+    })
+    const preferencesService = new GenerationPreferencesService()
+    const conversationService = new DesktopConversationService(
+      'desktop-conversation-default',
+      treeService,
+      runtime,
+      this.conversationModelProvider,
+      preferencesService
+    )
+    this.unregisterConversationTransport = registerConversationTransport({
+      service: conversationService,
+      senderPolicy
+    })
+    this.unregisterProviderTransport = registerProviderTransport(providerService, senderPolicy)
+    this.unregisterPreferencesTransport = registerPreferencesTransport(preferencesService, senderPolicy)
+
+    this.setupSecurityHeaders(parsedRendererUrl)
+  }
+
+  /**
+   * Optional AI runtime initialization for debug chat endpoints.
+   */
+  public async initializeAiRuntime(customConfig?: AppConfig, rendererUrl?: string): Promise<void> {
     const config = customConfig ?? loadAppConfig()
     const modelAdapter = createModelAdapter(config.providerConfig)
 
     this.kernel = new ChatKernel(modelAdapter)
-    const rendererUrl = process.env.ELECTRON_RENDERER_URL
-    const parsedRendererUrl = rendererUrl ? new URL(rendererUrl) : null
-    this.unregisterTransport = registerElectronChatTransport({
-      kernel: this.kernel,
-      allowedOrigins: parsedRendererUrl && parsedRendererUrl.protocol !== 'file:' ? [parsedRendererUrl.origin] : undefined
+    this.conversationModelProvider?.setCurrentModel({
+      providerId: config.providerConfig.provider,
+      modelId: config.providerConfig.modelId,
+      executor: this.kernel
     })
-
-    this.setupSecurityHeaders()
+    const parsedRendererUrl = rendererUrl ? new URL(rendererUrl) : null
+    this.unregisterChatTransport = registerElectronChatTransport({
+      kernel: this.kernel,
+      allowedOrigins: parsedRendererUrl && parsedRendererUrl.protocol !== 'file:'
+        ? [parsedRendererUrl.origin]
+        : undefined
+    })
   }
 
   public createWindow(preloadPath: string, rendererUrl?: string): BrowserWindow {
     const window = new BrowserWindow({
-      width: 900,
-      height: 700,
+      width: 1024,
+      height: 768,
       show: false,
       webPreferences: {
         preload: preloadPath,
-        contextIsolation: true,
-        nodeIntegration: false,
-        sandbox: true,
-        webSecurity: true
+        ...BROWSER_WINDOW_SECURITY_PREFERENCES
       }
     })
 
@@ -46,11 +135,12 @@ export class ElectronHost {
       return { action: 'deny' }
     })
 
-    const allowedRendererUrl = rendererUrl ? new URL(rendererUrl) : null
+    const allowedUrl = this.resolveRendererUrl(rendererUrl)
+    this.navigationPolicy = new NavigationPolicy(allowedUrl)
 
     // Disallow navigation outside the configured renderer page/origin.
     window.webContents.on('will-navigate', (event, navigationUrl) => {
-      if (!allowedRendererUrl || !this.isAllowedNavigation(navigationUrl, allowedRendererUrl)) {
+      if (!this.navigationPolicy || !this.navigationPolicy.isAllowedNavigation(navigationUrl)) {
         event.preventDefault()
       }
     })
@@ -63,8 +153,28 @@ export class ElectronHost {
       window.show()
     })
 
-    if (rendererUrl) {
+    window.webContents.on(
+      'did-fail-load',
+      (_event, errorCode, errorDescription, _validatedUrl, isMainFrame) => {
+        if (!isMainFrame) {
+          return
+        }
+
+        // Do not include the URL here: production URLs disclose local installation paths.
+        console.error(`Renderer failed to load (${errorCode}): ${errorDescription}`)
+        if (!window.isDestroyed()) {
+          window.destroy()
+        }
+        app.quit()
+      }
+    )
+
+    if (rendererUrl && !rendererUrl.startsWith('file:')) {
       window.loadURL(rendererUrl)
+    } else {
+      const mainDir = dirname(fileURLToPath(import.meta.url))
+      const rendererPath = join(mainDir, '../renderer/index.html')
+      window.loadFile(rendererPath)
     }
 
     return window
@@ -81,34 +191,56 @@ export class ElectronHost {
       this.unregisterTransport = null
     }
 
+    if (this.unregisterShellTransport) {
+      this.unregisterShellTransport()
+      this.unregisterShellTransport = null
+    }
+
+    if (this.unregisterChatTransport) {
+      this.unregisterChatTransport()
+      this.unregisterChatTransport = null
+    }
+
+    if (this.unregisterConversationTransport) {
+      this.unregisterConversationTransport()
+      this.unregisterConversationTransport = null
+    }
+
+    if (this.unregisterProviderTransport) {
+      this.unregisterProviderTransport()
+      this.unregisterProviderTransport = null
+    }
+
+    if (this.unregisterPreferencesTransport) {
+      this.unregisterPreferencesTransport()
+      this.unregisterPreferencesTransport = null
+    }
+
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       this.mainWindow.destroy()
       this.mainWindow = null
     }
   }
 
-  private setupSecurityHeaders(): void {
+  private setupSecurityHeaders(rendererUrl: URL | null): void {
+    const csp = buildContentSecurityPolicy(rendererUrl)
+
     session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
       callback({
         responseHeaders: {
           ...details.responseHeaders,
-          'Content-Security-Policy': [
-            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'"
-          ]
+          'Content-Security-Policy': [csp]
         }
       })
     })
   }
 
-  private isAllowedNavigation(navigationUrl: string, allowedRendererUrl: URL): boolean {
-    try {
-      const targetUrl = new URL(navigationUrl)
-      if (allowedRendererUrl.protocol === 'file:') {
-        return targetUrl.protocol === 'file:' && targetUrl.pathname === allowedRendererUrl.pathname
-      }
-      return targetUrl.origin === allowedRendererUrl.origin
-    } catch {
-      return false
+  private resolveRendererUrl(rendererUrl?: string): URL {
+    if (rendererUrl) {
+      return new URL(rendererUrl)
     }
+
+    const mainDir = dirname(fileURLToPath(import.meta.url))
+    return pathToFileURL(join(mainDir, '../renderer/index.html'))
   }
 }

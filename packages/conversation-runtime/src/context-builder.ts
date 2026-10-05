@@ -11,7 +11,8 @@ import {
 import type { ConversationRuntimeResult } from './domain/conversation-runtime.types.js'
 
 export function buildChatContext(
-  path: readonly ConversationNode[]
+  path: readonly ConversationNode[],
+  systemPrompt?: string
 ): ConversationRuntimeResult<readonly ChatMessageInput[]> {
   if (!Array.isArray(path) || path.length === 0) {
     return {
@@ -20,12 +21,15 @@ export function buildChatContext(
     }
   }
 
-  if (path.length > MAX_MESSAGES_COUNT) {
+  const hasSystemPrompt = typeof systemPrompt === 'string' && systemPrompt.trim().length > 0
+  const totalMessageCount = path.length + (hasSystemPrompt ? 1 : 0)
+
+  if (totalMessageCount > MAX_MESSAGES_COUNT) {
     return {
       ok: false,
       error: createRuntimeError(
         'CONTEXT_LIMIT_EXCEEDED',
-        `Conversation path message count ${path.length} exceeds limit of ${MAX_MESSAGES_COUNT}`
+        `Conversation path message count ${totalMessageCount} exceeds limit of ${MAX_MESSAGES_COUNT}`
       )
     }
   }
@@ -53,6 +57,23 @@ export function buildChatContext(
 
   let totalChars = 0
   const messages: ChatMessageInput[] = []
+
+  if (hasSystemPrompt) {
+    if (systemPrompt.length > MAX_SINGLE_MESSAGE_LENGTH) {
+      return {
+        ok: false,
+        error: createRuntimeError(
+          'CONTEXT_LIMIT_EXCEEDED',
+          `System prompt length ${systemPrompt.length} exceeds limit of ${MAX_SINGLE_MESSAGE_LENGTH}`
+        )
+      }
+    }
+    totalChars += systemPrompt.length
+    messages.push({
+      role: 'system',
+      content: systemPrompt
+    })
+  }
 
   for (const node of path) {
     if (!node.content || typeof node.content !== 'string') {

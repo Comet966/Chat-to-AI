@@ -11,7 +11,7 @@ import {
 import { ScriptedStreamingChatExecutor } from './test-helpers.js'
 
 describe('ConversationRuntimeService - Failure and Cancellation Flow', () => {
-  it('should handle model executor rejection and leave user node as current', async () => {
+  it('should handle model executor rejection and roll back the incomplete root turn', async () => {
     const treeRepo = new InMemoryConversationTreeRepository()
     const treeService = new ConversationTreeService(treeRepo)
     const cursorStore = new InMemoryConversationCursorStore()
@@ -34,13 +34,9 @@ describe('ConversationRuntimeService - Failure and Cancellation Flow', () => {
       expect(res.error.code).toBe('MODEL_REQUEST_REJECTED')
     }
 
-    // User node was created and retained
-    const tree = (await treeService.getTree('tree-fail-1')).value!
-    expect(tree.nodes).toHaveLength(1)
-    expect(tree.nodes[0].role).toBe('user')
-
-    // Cursor points to user node
-    expect(cursorStore.get('tree-fail-1')).toBe(tree.nodes[0].id)
+    const tree = await treeService.getTree('tree-fail-1')
+    expect(tree.ok).toBe(false)
+    expect(cursorStore.get('tree-fail-1')).toBeUndefined()
 
     // Events emitted: started then failed
     expect(events.map((e) => e.type)).toEqual([
@@ -77,10 +73,8 @@ describe('ConversationRuntimeService - Failure and Cancellation Flow', () => {
       expect(res.error.code).toBe('MODEL_REQUEST_FAILED')
     }
 
-    // Snapshot has NO assistant node
-    const tree = (await treeService.getTree('tree-fail-2')).value!
-    expect(tree.nodes).toHaveLength(1)
-    expect(tree.nodes[0].role).toBe('user')
+    const tree = await treeService.getTree('tree-fail-2')
+    expect(tree.ok).toBe(false)
 
     // Events included deltas, ending in failed
     const failedEvent = events.find((e) => e.type === 'conversation.turn.failed')
@@ -114,9 +108,9 @@ describe('ConversationRuntimeService - Failure and Cancellation Flow', () => {
       expect(res.error.code).toBe('MODEL_REQUEST_CANCELLED')
     }
 
-    const tree = (await treeService.getTree('tree-cancel')).value!
-    expect(tree.nodes).toHaveLength(1)
-    expect(cursorStore.get('tree-cancel')).toBe(tree.nodes[0].id)
+    const tree = await treeService.getTree('tree-cancel')
+    expect(tree.ok).toBe(false)
+    expect(cursorStore.get('tree-cancel')).toBeUndefined()
   })
 
   it('should reject empty model response content with EMPTY_MODEL_RESPONSE', async () => {
@@ -146,8 +140,8 @@ describe('ConversationRuntimeService - Failure and Cancellation Flow', () => {
       expect(res.error.code).toBe('EMPTY_MODEL_RESPONSE')
     }
 
-    const tree = (await treeService.getTree('tree-empty')).value!
-    expect(tree.nodes).toHaveLength(1) // No assistant created
+    const tree = await treeService.getTree('tree-empty')
+    expect(tree.ok).toBe(false)
   })
 
   it('should allow subsequent message after a failure has occurred', async () => {
@@ -188,7 +182,54 @@ describe('ConversationRuntimeService - Failure and Cancellation Flow', () => {
 
     expect(res2.ok).toBe(true)
     const tree = (await treeService.getTree('tree-retry')).value!
-    // Tree has user1, user2, assistant2
-    expect(tree.nodes).toHaveLength(3)
+    // The failed first attempt was fully rolled back.
+    expect(tree.nodes).toHaveLength(2)
+  })
+
+  it('should restore the previous assistant cursor when a later branch turn fails', async () => {
+    const treeRepo = new InMemoryConversationTreeRepository()
+    const treeService = new ConversationTreeService(treeRepo)
+    const cursorStore = new InMemoryConversationCursorStore()
+    const runtimeService = new ConversationRuntimeService(treeService, cursorStore)
+
+    const first = await runtimeService.sendMessage(
+      {
+        treeId: 'tree-later-failure',
+        prompt: 'Successful turn',
+        model: {
+          providerId: 'p',
+          modelId: 'm',
+          executor: new ScriptedStreamingChatExecutor([
+            { type: 'started' },
+            { type: 'delta', text: 'Successful answer' },
+            { type: 'completed', finishReason: 'stop' }
+          ])
+        }
+      },
+      { emit: () => {} }
+    )
+    expect(first.ok).toBe(true)
+    if (!first.ok) return
+
+    const failed = await runtimeService.sendMessage(
+      {
+        treeId: 'tree-later-failure',
+        prompt: 'This turn fails',
+        model: {
+          providerId: 'p',
+          modelId: 'm',
+          executor: new ScriptedStreamingChatExecutor([
+            { type: 'started' },
+            { type: 'failed', message: 'Provider failed' }
+          ])
+        }
+      },
+      { emit: () => {} }
+    )
+
+    expect(failed.ok).toBe(false)
+    const snapshot = (await treeService.getTree('tree-later-failure')).value!
+    expect(snapshot.nodes).toHaveLength(2)
+    expect(cursorStore.get('tree-later-failure')).toBe(first.value.assistantNodeId)
   })
 })

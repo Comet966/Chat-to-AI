@@ -32,7 +32,7 @@ export interface RawProviderConfigInput {
 
 export type ResolveProviderConfigResult =
   | { success: true; config: ProviderConfig }
-  | { success: false; error: string }
+  | { success: false; error: string; field?: string }
 
 export function validateSanitizedUrl(rawUrl: string): { success: true; url: string } | { success: false; error: string } {
   let urlObj: URL
@@ -57,16 +57,18 @@ export function validateSanitizedUrl(rawUrl: string): { success: true; url: stri
 export function validateProviderConfig(config: unknown): ResolveProviderConfigResult {
   const parseResult = ProviderConfigSchema.safeParse(config)
   if (!parseResult.success) {
+    const firstIssue = parseResult.error.errors[0]
+    const field = firstIssue?.path[0]?.toString()
     const errorDetails = parseResult.error.errors
       .map((e) => `${e.path.join('.')}: ${e.message}`)
       .join('; ')
-    return { success: false, error: `Invalid provider configuration: ${errorDetails}` }
+    return { success: false, error: `Invalid provider configuration: ${errorDetails}`, field }
   }
 
   const data = parseResult.data
   const urlValidation = validateSanitizedUrl(data.baseUrl)
   if (!urlValidation.success) {
-    return { success: false, error: urlValidation.error }
+    return { success: false, error: urlValidation.error, field: 'baseUrl' }
   }
 
   return {

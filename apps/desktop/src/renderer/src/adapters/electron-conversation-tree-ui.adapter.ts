@@ -1,0 +1,161 @@
+import type { DesktopApi } from '../../../shared/desktop-api.contract.js'
+import type { ConversationSnapshotDto } from '../../../shared/conversation.contract.js'
+import type {
+  AddChildNodeInput,
+  ConversationTreeResult,
+  ConversationTreeSnapshot,
+  ConversationTreeUiPort,
+  DeleteNodesInput
+} from '../ports/conversation-tree-ui.port.js'
+
+export class ElectronConversationTreeUiAdapter implements ConversationTreeUiPort {
+  private snapshot: ConversationTreeSnapshot | null = null
+  private readonly listeners = new Set<(snapshot: ConversationTreeSnapshot) => void>()
+  private unsubscribeEvent: (() => void) | null = null
+  /**
+   * Changes whenever an accepted snapshot replaces the local cache.
+   *
+   * IPC invoke responses and pushed events travel independently. A reload that
+   * started before a newer event can therefore finish after that event. Keeping
+   * this generation lets request responses avoid rolling the cache back when
+   * they have been overtaken by a pushed snapshot with the same revision.
+   */
+  private snapshotGeneration = 0
+
+  constructor(private readonly api: DesktopApi['conversation']) {}
+
+  public connect(): void {
+    if (this.unsubscribeEvent) return
+    this.unsubscribeEvent = this.api.onEvent((event) => {
+      if (event.type === 'conversation.snapshot.changed') {
+        this.updateSnapshot(this.mapSnapshot(event.snapshot))
+      }
+    })
+  }
+
+  public dispose(): void {
+    this.unsubscribeEvent?.()
+    this.unsubscribeEvent = null
+  }
+
+  public async getSnapshot(): Promise<ConversationTreeResult<ConversationTreeSnapshot>> {
+    if (this.snapshot) return { ok: true, value: this.cloneSnapshot(this.snapshot) }
+    return this.reload()
+  }
+
+  public subscribe(listener: (snapshot: ConversationTreeSnapshot) => void): () => void {
+    this.listeners.add(listener)
+    return () => this.listeners.delete(listener)
+  }
+
+  public async setCurrentNode(
+    nodeId: string
+  ): Promise<ConversationTreeResult<ConversationTreeSnapshot>> {
+    let current = this.snapshot
+    if (!current) {
+      const reloaded = await this.reload()
+      if (!reloaded.ok) return reloaded
+      current = reloaded.value
+    }
+    const generationAtRequestStart = this.snapshotGeneration
+    const result = await this.api.setCurrentTurn({
+      turnId: nodeId,
+      expectedRevision: current.revision
+    })
+    if (!result.ok) return this.mapFailure(result.error.code, result.error.message)
+    const snapshot = this.mapSnapshot(result.value)
+    const acceptedSnapshot = this.updateSnapshot(snapshot, generationAtRequestStart)
+    return { ok: true, value: this.cloneSnapshot(acceptedSnapshot) }
+  }
+
+  public async addChildNode(
+    _input: AddChildNodeInput
+  ): Promise<ConversationTreeResult<ConversationTreeSnapshot>> {
+    return this.notImplemented('New turns are created by sending a real AI message')
+  }
+
+  public async deleteNodes(
+    _input: DeleteNodesInput
+  ): Promise<ConversationTreeResult<ConversationTreeSnapshot>> {
+    return this.notImplemented('Deleting real conversation turns is not implemented yet')
+  }
+
+  public async reload(): Promise<ConversationTreeResult<ConversationTreeSnapshot>> {
+    const generationAtRequestStart = this.snapshotGeneration
+    const result = await this.api.getSnapshot()
+    if (!result.ok) return this.mapFailure(result.error.code, result.error.message)
+    const snapshot = this.mapSnapshot(result.value)
+    const acceptedSnapshot = this.updateSnapshot(snapshot, generationAtRequestStart)
+    return { ok: true, value: this.cloneSnapshot(acceptedSnapshot) }
+  }
+
+  private mapSnapshot(snapshot: ConversationSnapshotDto): ConversationTreeSnapshot {
+    return {
+      treeId: snapshot.treeId,
+      revision: snapshot.revision,
+      rootId: snapshot.rootTurnId ?? '',
+      currentNodeId: snapshot.currentTurnId ?? '',
+      nodes: snapshot.turns.map((turn) => ({
+        id: turn.id,
+        parentId: turn.parentId,
+        question: turn.question,
+        answer: turn.answer,
+        sequence: turn.sequence,
+        createdAt: turn.createdAt,
+        ...(turn.providerInfo ? { providerInfo: { ...turn.providerInfo } } : {})
+      }))
+    }
+  }
+
+  private updateSnapshot(
+    snapshot: ConversationTreeSnapshot,
+    generationAtRequestStart?: number
+  ): ConversationTreeSnapshot {
+    const current = this.snapshot
+    if (current?.treeId === snapshot.treeId) {
+      // Tree revisions are monotonic. Never let an out-of-order IPC response or
+      // event remove nodes that are already present in a newer local snapshot.
+      if (snapshot.revision < current.revision) {
+        return current
+      }
+
+      // A request that began before another accepted update is stale at an
+      // equal revision as well. This matters for cursor-only updates, which do
+      // not necessarily mutate the underlying tree version.
+      if (
+        snapshot.revision === current.revision &&
+        generationAtRequestStart !== undefined &&
+        generationAtRequestStart !== this.snapshotGeneration
+      ) {
+        return current
+      }
+    }
+
+    this.snapshot = this.cloneSnapshot(snapshot)
+    ++this.snapshotGeneration
+    for (const listener of this.listeners) listener(this.cloneSnapshot(this.snapshot))
+    return this.snapshot
+  }
+
+  private cloneSnapshot(snapshot: ConversationTreeSnapshot): ConversationTreeSnapshot {
+    return structuredClone(snapshot)
+  }
+
+  private mapFailure(code: string, message: string): ConversationTreeResult<never> {
+    if (code === 'TURN_NOT_FOUND') {
+      return { ok: false, error: { code: 'NODE_NOT_FOUND', message } }
+    }
+    if (code === 'VALIDATION_FAILED') {
+      return { ok: false, error: { code: 'VALIDATION_FAILED', message } }
+    }
+    return { ok: false, error: { code: 'INTERNAL_ERROR', message } }
+  }
+
+  private internalFailure(message: string): ConversationTreeResult<never> {
+    return { ok: false, error: { code: 'INTERNAL_ERROR', message } }
+  }
+
+  private notImplemented(message: string): ConversationTreeResult<never> {
+    return { ok: false, error: { code: 'NOT_IMPLEMENTED', message } }
+  }
+}

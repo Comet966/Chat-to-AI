@@ -144,4 +144,27 @@ describe('context-builder', () => {
       ])
     }
   })
+
+  it('should prepend systemPrompt when provided and count towards total length and limits', () => {
+    const path: ConversationNode[] = [
+      {
+        id: 'u1',
+        treeId: 't1',
+        parentId: null,
+        role: 'user',
+        content: 'Hello',
+        sequence: 0,
+        createdAt: '2026-09-17T00:00:00.000Z'
+      }
+    ]
+
+    const res = buildChatContext(path, 'Act as a coding assistant.')
+    expect(res.ok).toBe(true)
+    if (res.ok) {
+      expect(res.value).toEqual([
+        { role: 'system', content: 'Act as a coding assistant.' },
+        { role: 'user', content: 'Hello' }
+      ])
+    }
+  })
 })

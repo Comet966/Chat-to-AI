@@ -1,4 +1,5 @@
 import { app } from 'electron'
+import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { ElectronHost } from './electron-host.js'
@@ -8,10 +9,13 @@ let isQuitting = false
 
 app.whenReady().then(async () => {
   try {
-    await host.initialize()
     const mainDir = dirname(fileURLToPath(import.meta.url))
-    const preloadPath = join(mainDir, '../preload/index.mjs')
+    const preloadPath = join(mainDir, '../preload/index.js')
+    if (!existsSync(preloadPath)) {
+      throw new Error('Sandbox-compatible preload bundle was not found')
+    }
     const devUrl = process.env.ELECTRON_RENDERER_URL
+    await host.initialize(devUrl)
     host.createWindow(preloadPath, devUrl)
   } catch (err) {
     console.error('Failed to initialize Electron application:', err)

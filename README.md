@@ -62,6 +62,41 @@ pnpm lint:boundaries
 pnpm test
 ```
 
+## 🖥️ Electron 桌面端 GUI
+
+桌面端位于 `apps/desktop`，基于 Electron + React 19 + React Router (`HashRouter`) 构建，采用分层 Port / Adapter 架构，具备以下能力：
+
+- **输入体验优化**：
+  - **流式草稿编辑**：当 Assistant 正在流式输出时，输入框不再被禁用，用户可实时编辑下一条问题草稿；提供非阻塞提示，流式期间回车不会误发第二条请求，Stop 按钮保持可用；当前请求结束（完成、取消或失败）后草稿完整保留并可立即发送；
+  - **中文输入法 (IME) 防误触**：严格监听 `compositionstart` / `compositionend` 与 `keyCode === 229`，中文/日文/韩文输入法选词按 Enter 确认候选词时绝不误发送消息；`Shift+Enter` 正常换行。
+- **输出约束与格式系统提示词 (Generation Preferences)**：
+  - 支持在设置页独立配置 Markdown 与 HTML 的系统提示词模板，引导模型按选定格式严谨输出；
+  - 提示词作为合成系统消息 (Synthetic System Message) 在 Main Process 请求前注入，不作为独立节点污染会话树；
+  - 切换渲染模式自动同步下一轮生成的输出约束偏好，历史消息记录对应的只读 `declaredOutputFormat` 格式元数据。
+- **富文本与双渲染增强**：
+  - **LaTeX 数学公式**：Markdown 模式支持 KaTeX 解析行内公式 (`$...$`) 与块级公式 (`$$...$$`)，公式溢出横向平滑滚动，语法异常时优雅降级而不崩溃；
+  - **安全内联 SVG**：HTML 模式支持安全的内联 `<svg>` 图形渲染（包括 `path`, `rect`, `circle`, `line`, `polygon`, `text`, `linearGradient` 等）；
+  - **强安全防护**：继续执行集中严格净化，坚决移除 `script`, `style`, `foreignObject`, `use`, `animate`, `iframe`, `form` 以及所有外链、图片、媒体资源与内联事件；阻止所有外链在 WebView 中直接跳转；
+  - 用户输入严格保持纯文本安全显示。
+- **供应商目录协议解耦与本地预设**：
+  - **生成与目录协议分离**：支持将 Anthropic Messages 生成协议与 OpenAI-compatible (`/v1/models`) 目录协议独立组合，适配各类本地反向代理与网关；支持 `manual-only` 纯手动输入模式；
+  - **本地开发测试预设**：设置显式环境变量 `DESKTOP_ENABLE_LOCAL_PROVIDER_PRESET=1` 并在 `.env.local` 提供密钥后，Electron 启动时会自动加载本地 Anthropic 测试供应商；设置页仍可手动重新载入预设（参考 `.env.local.example`），严禁将任何真实密钥硬编码或提交入库。
+- **安全与边界规范**：
+  - 严格开启 `contextIsolation: true`、`sandbox: true`、`nodeIntegration: false`；
+  - 渲染层禁止导入任何 Electron、Node.js 原生模块或模型适配器内核。
+
+启动桌面端开发模式：
+
+```bash
+pnpm --filter chat-desktop run dev
+```
+
+构建桌面端（Main / Preload / Renderer）：
+
+```bash
+pnpm build:desktop
+```
+
 启动交互式会话调试 CLI：
 
 ```bash

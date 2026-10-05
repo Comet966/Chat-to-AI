@@ -180,4 +180,45 @@ describe('OpenAICompatibleModelAdapter', () => {
 
     fetchSpy.mockRestore()
   })
+
+  it('should automatically normalize base URL without /v1 suffix (e.g. http://127.0.0.1:8317)', async () => {
+    const ssePayload = 'data: [DONE]\n\n'
+    const mockResponse = new Response(
+      new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode(ssePayload))
+          controller.close()
+        }
+      }),
+      { status: 200, headers: { 'Content-Type': 'text/event-stream' } }
+    )
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(mockResponse)
+
+    const adapter = new OpenAICompatibleModelAdapter({
+      baseUrl: 'http://127.0.0.1:8317',
+      apiKey: 'test-key',
+      modelId: 'test-model'
+    })
+
+    const abortController = new AbortController()
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    for await (const _ of adapter.streamChat(
+      { messages: [{ role: 'user', content: 'Hi' }] },
+      abortController.signal
+    )) {
+      // consume
+    }
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'http://127.0.0.1:8317/v1/chat/completions',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          Authorization: 'Bearer test-key'
+        })
+      })
+    )
+
+    fetchSpy.mockRestore()
+  })
 })

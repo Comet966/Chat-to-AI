@@ -25,9 +25,20 @@ export type ConversationRuntimeResult<T> =
   | { readonly ok: true; readonly value: T }
   | { readonly ok: false; readonly error: ConversationRuntimeError }
 
+export type ConversationContextSelection =
+  | { readonly mode: 'root-path' }
+  | {
+      readonly mode: 'explicit-nodes'
+      /** Ordered historical message node IDs. The current prompt is appended by the runtime. */
+      readonly nodeIds: readonly ConversationNodeId[]
+    }
+
 export interface SendConversationMessageCommand {
   readonly treeId: ConversationTreeId
   readonly prompt: string
+  readonly systemPrompt?: string
+  /** Controls context construction independently from the node used as the new branch parent. */
+  readonly contextSelection?: ConversationContextSelection
   readonly selectedNodeId?: ConversationNodeId
   readonly model: ModelExecutionDescriptor
 }
