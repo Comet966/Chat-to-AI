@@ -14,6 +14,11 @@ export interface ConversationTurnNodePair {
   readonly assistantNodeId: ConversationNodeId
 }
 
+export interface TurnFormatMetadata {
+  readonly declaredOutputFormat: 'markdown' | 'html'
+  readonly templateVersion: number
+}
+
 export interface ProjectedConversation {
   readonly snapshot: ConversationSnapshotDto
   readonly turnNodePairs: ReadonlyMap<string, ConversationTurnNodePair>
@@ -25,7 +30,8 @@ function projectionFailure(message: string): DesktopConversationResult<never> {
 
 export function projectConversationTurns(
   tree: ConversationTreeSnapshot,
-  currentCoreNodeId: ConversationNodeId | null
+  currentCoreNodeId: ConversationNodeId | null,
+  turnFormatMetadata?: ReadonlyMap<string, TurnFormatMetadata>
 ): DesktopConversationResult<ProjectedConversation> {
   const nodesById = new Map<string, ConversationNode>()
   for (const node of tree.nodes) {
@@ -69,6 +75,7 @@ export function projectConversationTurns(
       ancestorId = ancestor.parentId
     }
 
+    const formatMeta = turnFormatMetadata?.get(assistant.id)
     const turn: ConversationTurnDto = {
       id: assistant.id,
       parentId: parentTurnId,
@@ -84,6 +91,12 @@ export function projectConversationTurns(
               provider: assistant.generatedBy.providerId,
               modelId: assistant.generatedBy.modelId
             }
+          }
+        : {}),
+      ...(formatMeta
+        ? {
+            declaredOutputFormat: formatMeta.declaredOutputFormat,
+            templateVersion: formatMeta.templateVersion
           }
         : {})
     }

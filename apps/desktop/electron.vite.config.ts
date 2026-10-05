@@ -21,6 +21,15 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve(__dirname, 'src/preload/index.ts')
+        },
+        output: {
+          // Sandboxed Electron preloads do not support native ESM imports.
+          // Keep the bridge in one synchronous CommonJS file so it is ready
+          // before the renderer evaluates window.desktopApi.
+          format: 'cjs',
+          entryFileNames: '[name].js',
+          chunkFileNames: '[name]-[hash].js',
+          inlineDynamicImports: true
         }
       }
     }

@@ -1,7 +1,8 @@
-import React, { useReducer, useState } from 'react'
+import React, { useEffect, useReducer, useState } from 'react'
 import { Button } from '../../components/Button.js'
 import { Field } from '../../components/Field.js'
 import { StatusNotice } from '../../components/StatusNotice.js'
+import type { DesktopDevPresetDto } from '../../../../shared/provider.contract.js'
 import type {
   ProviderKind,
   ProviderSettingsData,
@@ -28,6 +29,19 @@ export function ProviderSettingsForm({
   } as ProviderSettingsFormState)
   const [modelOptions, setModelOptions] = useState<readonly string[]>([])
   const [loadingModels, setLoadingModels] = useState(false)
+  const [devPreset, setDevPreset] = useState<DesktopDevPresetDto | null>(null)
+
+  useEffect(() => {
+    let isMounted = true
+    void port.getDevPreset?.().then((res) => {
+      if (isMounted && res?.ok && res.value) {
+        setDevPreset(res.value)
+      }
+    })
+    return () => {
+      isMounted = false
+    }
+  }, [port])
 
   const handleProviderChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     dispatch({
@@ -49,6 +63,9 @@ export function ProviderSettingsForm({
     const errors: Partial<Record<keyof ProviderSettingsData, string>> = {}
     if (!state.data.baseUrl || !/^https?:\/\/.+/.test(state.data.baseUrl)) {
       errors.baseUrl = 'Please enter a valid HTTP/HTTPS URL'
+    }
+    if (!state.data.hasApiKey && (!state.data.apiKey || state.data.apiKey.trim() === '')) {
+      errors.apiKey = 'API Key is required'
     }
     if (!state.data.modelId || state.data.modelId.trim() === '') {
       errors.modelId = 'Model ID is required'
@@ -77,12 +94,24 @@ export function ProviderSettingsForm({
         message: 'Settings saved for this application session.'
       })
     } else {
-      dispatch({
-        type: 'validationFailed',
-        errors: {
-          [saveRes.error.field as keyof ProviderSettingsData ?? 'baseUrl']: saveRes.error.message
+      const field = saveRes.error.field as keyof ProviderSettingsData | undefined
+      if (field) {
+        dispatch({
+          type: 'validationFailed',
+          errors: { [field]: saveRes.error.message }
+        })
+      } else {
+        const msg = saveRes.error.message.toLowerCase()
+        if (msg.includes('apikey') || msg.includes('api key')) {
+          dispatch({ type: 'validationFailed', errors: { apiKey: saveRes.error.message } })
+        } else if (msg.includes('baseurl') || msg.includes('base url') || msg.includes('url')) {
+          dispatch({ type: 'validationFailed', errors: { baseUrl: saveRes.error.message } })
+        } else if (msg.includes('model')) {
+          dispatch({ type: 'validationFailed', errors: { modelId: saveRes.error.message } })
+        } else {
+          dispatch({ type: 'testConnectionResult', message: saveRes.error.message })
         }
-      })
+      }
     }
   }
 
@@ -123,6 +152,38 @@ export function ProviderSettingsForm({
       <p className="card-subtitle">
         Configure provider endpoint, credentials, and default model parameters for this desktop session.
       </p>
+
+      {devPreset && (
+        <div className="dev-preset-container">
+          <div className="dev-preset-info">
+            <span className="dev-preset-badge">DEV PRESET</span>
+            <span className="dev-preset-desc">
+              本地测试预设（Anthropic 生成 + OpenAI 目录代理）
+            </span>
+          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() =>
+              dispatch({
+                type: 'applyPreset',
+                preset: {
+                  provider: devPreset.provider,
+                  baseUrl: devPreset.baseUrl,
+                  catalogMode: devPreset.catalogMode,
+                  catalogBaseUrl: devPreset.catalogBaseUrl,
+                  modelId: devPreset.modelId,
+                  maxOutputTokens: devPreset.maxOutputTokens,
+                  anthropicVersion: devPreset.anthropicVersion,
+                  hasApiKey: devPreset.hasApiKey
+                }
+              })
+            }
+          >
+            载入本地测试预设
+          </Button>
+        </div>
+      )}
 
       {state.noticeMessage && (
         <StatusNotice
@@ -209,6 +270,43 @@ export function ProviderSettingsForm({
             </Button>
           </div>
         </Field>
+      </div>
+
+      <div className="form-section">
+        <h3 className="form-section-title">模型目录协议 · Model Catalog Protocol</h3>
+        <Field
+          label="Catalog Protocol"
+          htmlFor="catalogMode"
+          hint="模型列表获取方式（例如 Anthropic 使用本地代理 OpenAI /v1/models 目录）"
+        >
+          <select
+            id="catalogMode"
+            value={state.data.catalogMode ?? 'provider-native'}
+            onChange={(e) => handleFieldChange('catalogMode', e.target.value)}
+            className="field-select"
+          >
+            <option value="provider-native">Provider Native (与当前供应商原生一致)</option>
+            <option value="openai-compatible">OpenAI-compatible (/v1/models 代理目录)</option>
+            <option value="manual-only">Manual Only (仅手动输入，不请求网络)</option>
+          </select>
+        </Field>
+
+        {state.data.catalogMode === 'openai-compatible' && (
+          <Field
+            label="Catalog Base URL (Optional)"
+            htmlFor="catalogBaseUrl"
+            hint="留空则默认复用上方 Base URL"
+          >
+            <input
+              id="catalogBaseUrl"
+              type="url"
+              value={state.data.catalogBaseUrl ?? ''}
+              onChange={(e) => handleFieldChange('catalogBaseUrl', e.target.value)}
+              className="field-input"
+              placeholder="http://127.0.0.1:8317/v1"
+            />
+          </Field>
+        )}
       </div>
 
       <div className="form-section">

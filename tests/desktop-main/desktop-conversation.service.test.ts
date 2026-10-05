@@ -191,6 +191,7 @@ describe('DesktopConversationService', () => {
 
     expect(accepted.ok).toBe(true)
     expect(manualExecutor.lastReceivedCommand?.messages).toEqual([
+      { role: 'system', content: expect.any(String) },
       { role: 'user', content: 'Q1' },
       { role: 'assistant', content: 'A1' },
       { role: 'user', content: 'Q2' },

@@ -27,6 +27,20 @@ export function conversationTreeReducer(
       }
 
     case 'loadSuccess': {
+      // Snapshot delivery combines request responses and pushed IPC events.
+      // Ignore a late response from an older tree revision so it cannot make
+      // already-rendered conversation nodes disappear.
+      if (
+        state.snapshot?.treeId === action.snapshot.treeId &&
+        action.snapshot.revision < state.snapshot.revision
+      ) {
+        return {
+          ...state,
+          loading: false,
+          error: null
+        }
+      }
+
       // Retain selections that still exist in the new snapshot
       const existingIds = new Set(action.snapshot.nodes.map((n) => n.id))
       const nextSelection = new Set<string>()

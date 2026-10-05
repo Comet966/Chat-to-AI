@@ -18,7 +18,8 @@ export class GeminiGenerateContentModelAdapter implements ChatModelPort {
   private readonly maxOutputTokens?: number
 
   constructor(options: GeminiGenerateContentModelAdapterOptions) {
-    this.baseUrl = (options.baseUrl || DEFAULT_GEMINI_BASE_URL).replace(/\/+$/, '')
+    const raw = (options.baseUrl || DEFAULT_GEMINI_BASE_URL).replace(/\/+$/, '')
+    this.baseUrl = raw.endsWith('/v1beta') ? raw.slice(0, -7) : raw
     this.apiKey = options.apiKey
     this.modelId = options.modelId
     this.maxOutputTokens = options.maxOutputTokens

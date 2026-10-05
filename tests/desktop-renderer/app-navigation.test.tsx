@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
-import React from 'react'
-import { describe, expect, it } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import React, { StrictMode } from 'react'
+import { describe, expect, it, vi } from 'vitest'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { App } from '../../apps/desktop/src/renderer/src/app.js'
 import { InMemoryProviderSettingsAdapter } from '../../apps/desktop/src/renderer/src/adapters/in-memory-provider-settings.adapter.js'
 import { DemoChatUiAdapter } from '../../apps/desktop/src/renderer/src/adapters/demo-chat-ui.adapter.js'
+import { DemoConversationTreeUiAdapter } from '../../apps/desktop/src/renderer/src/adapters/demo-conversation-tree-ui.adapter.js'
 
 describe('App Navigation and Routing', () => {
   const createTestPorts = () => ({
@@ -103,5 +104,54 @@ describe('App Navigation and Routing', () => {
     expect(await screen.findByText('AI Conversation')).toBeDefined()
     const chatLink = screen.getByRole('link', { name: '对话' })
     expect(chatLink.getAttribute('aria-current')).toBe('page')
+  })
+
+  it('keeps managed ports connected after the StrictMode effect replay', async () => {
+    const chatUi = new DemoChatUiAdapter()
+    const conversationTree = new DemoConversationTreeUiAdapter()
+    let chatConnected = false
+    let treeConnected = false
+
+    const chatConnect = vi.fn(() => {
+      chatConnected = true
+    })
+    const chatDispose = vi.fn(() => {
+      chatConnected = false
+    })
+    const treeConnect = vi.fn(() => {
+      treeConnected = true
+    })
+    const treeDispose = vi.fn(() => {
+      treeConnected = false
+    })
+
+    Object.assign(chatUi, { connect: chatConnect, dispose: chatDispose })
+    Object.assign(conversationTree, { connect: treeConnect, dispose: treeDispose })
+
+    const view = render(
+      <StrictMode>
+        <App
+          customPorts={{
+            providerSettings: new InMemoryProviderSettingsAdapter(),
+            chatUi,
+            conversationTree,
+            runtimeMode: 'preview'
+          }}
+        />
+      </StrictMode>
+    )
+
+    await waitFor(() => {
+      expect(chatConnected).toBe(true)
+      expect(treeConnected).toBe(true)
+    })
+    expect(chatConnect).toHaveBeenCalled()
+    expect(treeConnect).toHaveBeenCalled()
+
+    view.unmount()
+    expect(chatConnected).toBe(false)
+    expect(treeConnected).toBe(false)
+    expect(chatDispose).toHaveBeenCalled()
+    expect(treeDispose).toHaveBeenCalled()
   })
 })

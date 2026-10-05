@@ -10,9 +10,10 @@ let isQuitting = false
 app.whenReady().then(async () => {
   try {
     const mainDir = dirname(fileURLToPath(import.meta.url))
-    const preloadMjs = join(mainDir, '../preload/index.mjs')
-    const preloadJs = join(mainDir, '../preload/index.js')
-    const preloadPath = existsSync(preloadMjs) ? preloadMjs : preloadJs
+    const preloadPath = join(mainDir, '../preload/index.js')
+    if (!existsSync(preloadPath)) {
+      throw new Error('Sandbox-compatible preload bundle was not found')
+    }
     const devUrl = process.env.ELECTRON_RENDERER_URL
     await host.initialize(devUrl)
     host.createWindow(preloadPath, devUrl)

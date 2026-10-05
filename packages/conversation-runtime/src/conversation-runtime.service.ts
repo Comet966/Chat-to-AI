@@ -219,7 +219,7 @@ export class ConversationRuntimeService {
         return rollbackRes.ok ? contextNodesRes : rollbackRes
       }
 
-      const contextRes = buildChatContext(contextNodesRes.value)
+      const contextRes = buildChatContext(contextNodesRes.value, command.systemPrompt)
       if (!contextRes.ok) {
         const rollbackRes = await this.rollbackPendingUser(
           command.treeId,

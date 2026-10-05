@@ -12,6 +12,8 @@ export interface ConversationTurnDto {
   sequence: number
   createdAt: string
   providerInfo?: ConversationTurnProviderInfoDto
+  declaredOutputFormat?: 'markdown' | 'html'
+  templateVersion?: number
 }
 
 export interface ConversationSnapshotDto {

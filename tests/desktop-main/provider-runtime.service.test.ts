@@ -42,7 +42,11 @@ describe('ProviderRuntimeService', () => {
     const result = await service.listModels(baseInput)
     expect(result).toEqual({
       ok: true,
-      value: { models: ['model-a', 'model-z'], supportsManualEntry: true }
+      value: {
+        models: ['model-a', 'model-z'],
+        supportsManualEntry: true,
+        actualCatalogMode: 'provider-native'
+      }
     })
     expect(fetchImpl).toHaveBeenCalledWith(
       'https://api.openai.com/v1/models',
@@ -71,6 +75,59 @@ describe('ProviderRuntimeService', () => {
       'https://generativelanguage.googleapis.com/v1beta/models',
       expect.objectContaining({ headers: { 'x-goog-api-key': baseInput.apiKey } })
     )
+  })
+
+  it('normalizes OpenAI-compatible base URL without /v1 when listing models (e.g. http://127.0.0.1:8317)', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      data: [{ id: 'local-model' }]
+    }), { status: 200 }))
+    const service = new ProviderRuntimeService({
+      modelProvider: new MutableConversationModelProvider(),
+      hasActiveTurn: () => false,
+      fetchImpl
+    })
+    const result = await service.listModels({
+      ...baseInput,
+      baseUrl: 'http://127.0.0.1:8317'
+    })
+    expect(result.ok).toBe(true)
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'http://127.0.0.1:8317/v1/models',
+      expect.objectContaining({
+        headers: { authorization: `Bearer ${baseInput.apiKey}` }
+      })
+    )
+  })
+
+  it('validates and normalizes the catalog endpoint before Main sends credentials', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: [] }), { status: 200 }))
+    const service = new ProviderRuntimeService({
+      modelProvider: new MutableConversationModelProvider(),
+      hasActiveTurn: () => false,
+      fetchImpl
+    })
+
+    const invalid = await service.listModels({
+      ...baseInput,
+      catalogMode: 'openai-compatible',
+      catalogBaseUrl: 'file:///tmp/models'
+    })
+    expect(invalid).toMatchObject({
+      ok: false,
+      error: { code: 'VALIDATION_FAILED', field: 'catalogBaseUrl' }
+    })
+    expect(fetchImpl).not.toHaveBeenCalled()
+
+    const normalized = await service.listModels({
+      ...baseInput,
+      catalogMode: 'openai-compatible',
+      catalogBaseUrl: 'https://catalog.example.test/v1?key=must-not-be-accepted'
+    })
+    expect(normalized).toMatchObject({
+      ok: false,
+      error: { code: 'VALIDATION_FAILED', field: 'catalogBaseUrl' }
+    })
+    expect(fetchImpl).not.toHaveBeenCalled()
   })
 
   it('rejects configuration replacement during an active turn', () => {

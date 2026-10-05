@@ -5,7 +5,11 @@ import { ChatKernel } from 'chat-core'
 import { ConversationRuntimeService, InMemoryConversationCursorStore } from 'chat-conversation-runtime'
 import { ConversationTreeService, InMemoryConversationTreeRepository } from 'chat-conversation-tree'
 import { createModelAdapter } from 'chat-model-adapters'
-import { loadAppConfig, type AppConfig } from './app-config.js'
+import {
+  loadAppConfig,
+  loadLocalDevProviderConfig,
+  type AppConfig
+} from './app-config.js'
 import { registerDesktopShellTransport } from './desktop-shell.transport.js'
 import {
   DesktopConversationService,
@@ -22,6 +26,9 @@ import {
 } from './security/security-policy.js'
 import { SenderPolicy } from './security/sender-policy.js'
 
+import { GenerationPreferencesService } from './preferences/generation-preferences.service.js'
+import { registerPreferencesTransport } from './preferences/preferences.transport.js'
+
 export class ElectronHost {
   private mainWindow: BrowserWindow | null = null
   private kernel: ChatKernel | null = null
@@ -30,6 +37,7 @@ export class ElectronHost {
   private unregisterChatTransport: (() => void) | null = null
   private unregisterConversationTransport: (() => void) | null = null
   private unregisterProviderTransport: (() => void) | null = null
+  private unregisterPreferencesTransport: (() => void) | null = null
   private conversationModelProvider: MutableConversationModelProvider | null = null
   private navigationPolicy: NavigationPolicy | null = null
 
@@ -57,24 +65,32 @@ export class ElectronHost {
     try {
       initialProviderConfig = loadAppConfig().providerConfig
     } catch {
-      // Provider configuration is optional; the GUI remains usable and reports NOT_CONFIGURED.
+      // Provider configuration is optional. In explicitly enabled development
+      // mode, use the local test provider as the initial runtime.
+      if (!app.isPackaged) {
+        initialProviderConfig = loadLocalDevProviderConfig()?.providerConfig
+      }
     }
     const providerService = new ProviderRuntimeService({
       modelProvider: this.conversationModelProvider,
       initialConfig: initialProviderConfig,
-      hasActiveTurn: () => runtime.hasActiveTurn('desktop-conversation-default')
+      hasActiveTurn: () => runtime.hasActiveTurn('desktop-conversation-default'),
+      isPackaged: app.isPackaged
     })
+    const preferencesService = new GenerationPreferencesService()
     const conversationService = new DesktopConversationService(
       'desktop-conversation-default',
       treeService,
       runtime,
-      this.conversationModelProvider
+      this.conversationModelProvider,
+      preferencesService
     )
     this.unregisterConversationTransport = registerConversationTransport({
       service: conversationService,
       senderPolicy
     })
     this.unregisterProviderTransport = registerProviderTransport(providerService, senderPolicy)
+    this.unregisterPreferencesTransport = registerPreferencesTransport(preferencesService, senderPolicy)
 
     this.setupSecurityHeaders(parsedRendererUrl)
   }
@@ -193,6 +209,11 @@ export class ElectronHost {
     if (this.unregisterProviderTransport) {
       this.unregisterProviderTransport()
       this.unregisterProviderTransport = null
+    }
+
+    if (this.unregisterPreferencesTransport) {
+      this.unregisterPreferencesTransport()
+      this.unregisterPreferencesTransport = null
     }
 
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {

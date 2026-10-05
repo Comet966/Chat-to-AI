@@ -51,10 +51,25 @@ export function providerSettingsReducer(
           provider: action.provider,
           baseUrl: defaults.baseUrl,
           modelId: defaults.modelId,
-          anthropicVersion: defaults.anthropicVersion
+          anthropicVersion: defaults.anthropicVersion,
+          catalogMode: 'provider-native',
+          catalogBaseUrl: ''
         },
         errors: {},
         noticeMessage: null
+      }
+    }
+
+    case 'applyPreset': {
+      return {
+        ...state,
+        status: 'editing',
+        data: {
+          ...state.data,
+          ...action.preset
+        },
+        errors: {},
+        noticeMessage: 'Loaded local development preset. Click "Save Configuration" to apply.'
       }
     }
 

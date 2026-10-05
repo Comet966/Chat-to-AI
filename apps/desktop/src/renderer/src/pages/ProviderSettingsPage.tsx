@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ProviderSettingsForm } from '../features/provider-settings/ProviderSettingsForm.js'
+import { OutputPreferencesForm } from '../features/preferences/OutputPreferencesForm.js'
 import { usePorts } from '../ports/ports.context.js'
 import type { ProviderSettingsData } from '../ports/provider-settings.port.js'
 import { DEFAULT_PROVIDER_SETTINGS } from '../adapters/in-memory-provider-settings.adapter.js'
 
 export function ProviderSettingsPage() {
-  const { providerSettings } = usePorts()
+  const { providerSettings, preferences } = usePorts()
   const [initialData, setInitialData] = useState<ProviderSettingsData | null>(null)
 
   useEffect(() => {
@@ -33,7 +34,10 @@ export function ProviderSettingsPage() {
       </div>
 
       {initialData ? (
-        <ProviderSettingsForm port={providerSettings} initialData={initialData} />
+        <>
+          <ProviderSettingsForm port={providerSettings} initialData={initialData} />
+          {preferences && <OutputPreferencesForm port={preferences} />}
+        </>
       ) : (
         <div className="empty-desc">Loading settings...</div>
       )}

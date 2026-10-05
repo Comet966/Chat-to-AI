@@ -15,7 +15,8 @@ export class OpenAICompatibleModelAdapter implements ChatModelPort {
   private readonly apiKey: string
 
   constructor(options: OpenAICompatibleModelAdapterOptions) {
-    this.baseUrl = options.baseUrl.replace(/\/+$/, '')
+    const trimmed = options.baseUrl.replace(/\/+$/, '')
+    this.baseUrl = trimmed.endsWith('/v1') ? trimmed : `${trimmed}/v1`
     this.apiKey = options.apiKey
     this.modelId = options.modelId
   }

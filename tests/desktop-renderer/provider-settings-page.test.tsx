@@ -1,18 +1,23 @@
 // @vitest-environment jsdom
 import React from 'react'
 import { describe, expect, it } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ProviderSettingsPage } from '../../apps/desktop/src/renderer/src/pages/ProviderSettingsPage.js'
 import { InMemoryProviderSettingsAdapter } from '../../apps/desktop/src/renderer/src/adapters/in-memory-provider-settings.adapter.js'
+import { InMemoryGenerationPreferencesAdapter } from '../../apps/desktop/src/renderer/src/adapters/in-memory-generation-preferences.adapter.js'
 import { DemoChatUiAdapter } from '../../apps/desktop/src/renderer/src/adapters/demo-chat-ui.adapter.js'
+import { DemoConversationTreeUiAdapter } from '../../apps/desktop/src/renderer/src/adapters/demo-conversation-tree-ui.adapter.js'
 import { PortsProvider } from '../../apps/desktop/src/renderer/src/ports/ports.context.js'
 import { MemoryRouter } from 'react-router-dom'
 
 describe('ProviderSettingsPage and Form', () => {
   const secretKey = 'sk-super-secret-test-key-12345'
 
-  const renderWithPorts = (adapter?: InMemoryProviderSettingsAdapter) => {
+  const renderWithPorts = (
+    adapter?: InMemoryProviderSettingsAdapter,
+    prefAdapter?: InMemoryGenerationPreferencesAdapter
+  ) => {
     const providerSettings =
       adapter ??
       new InMemoryProviderSettingsAdapter({
@@ -23,9 +28,13 @@ describe('ProviderSettingsPage and Form', () => {
         maxOutputTokens: 1024
       })
 
+    const preferences = prefAdapter ?? new InMemoryGenerationPreferencesAdapter()
+
     const ports = {
       providerSettings,
-      chatUi: new DemoChatUiAdapter()
+      preferences,
+      chatUi: new DemoChatUiAdapter(),
+      conversationTree: new DemoConversationTreeUiAdapter()
     }
 
     return {
@@ -190,5 +199,40 @@ describe('ProviderSettingsPage and Form', () => {
     // All text content except the input value must not contain the secretKey
     const allText = container.textContent || ''
     expect(allText).not.toContain(secretKey)
+  })
+
+  it('renders and saves output format policy in preferences section', async () => {
+    const user = userEvent.setup()
+    const prefAdapter = new InMemoryGenerationPreferencesAdapter()
+    renderWithPorts(undefined, prefAdapter)
+
+    expect(await screen.findByRole('heading', { name: /Output Format Policy/i })).toBeDefined()
+
+    const mdPromptTextarea = screen.getByLabelText('Markdown Prompt Template')
+    await user.clear(mdPromptTextarea)
+    await user.type(mdPromptTextarea, 'Strict Markdown custom prompt with 20 chars.')
+
+    const savePrefsBtn = screen.getByRole('button', { name: /Save Preferences/i })
+    await user.click(savePrefsBtn)
+
+    expect(
+      await screen.findByText(/输出格式提示词已更新，将在下一轮请求中注入生效/i)
+    ).toBeDefined()
+
+    const updatedPrefs = (await prefAdapter.getPreferences()).value!
+    expect(updatedPrefs.markdownTemplate).toBe('Strict Markdown custom prompt with 20 chars.')
+  })
+
+  it('allows selecting decoupled model catalog protocol', async () => {
+    const user = userEvent.setup()
+    renderWithPorts()
+
+    const catalogSelect = (await screen.findByLabelText('Catalog Protocol')) as HTMLSelectElement
+    expect(catalogSelect.value).toBe('provider-native')
+
+    await user.selectOptions(catalogSelect, 'openai-compatible')
+    expect(catalogSelect.value).toBe('openai-compatible')
+
+    expect(await screen.findByLabelText(/Catalog Base URL/i)).toBeDefined()
   })
 })

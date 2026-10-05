@@ -14,16 +14,26 @@ import type {
   StartConversationTurnInput
 } from '../shared/conversation.contract.js'
 import type {
+  DesktopDevPresetDto,
   DesktopModelCatalogDto,
   DesktopProviderResult,
   DesktopProviderSettingsDto,
   DesktopProviderSettingsInput
 } from '../shared/provider.contract.js'
+import type {
+  DesktopPreferencesResult,
+  GenerationPreferencesDto,
+  OutputFormat,
+  SaveGenerationPreferencesInput
+} from '../shared/preferences.contract.js'
 import {
   ConversationSnapshotResultSchema,
   ConversationTurnAcceptedResultSchema,
   ConversationVoidResultSchema,
   DesktopConversationEventSchema,
+  PreferencesResultSchema,
+  PreferencesVoidResultSchema,
+  ProviderDevPresetResultSchema,
   ProviderModelCatalogResultSchema,
   ProviderSettingsResultSchema,
   ProviderVoidResultSchema
@@ -49,6 +59,13 @@ function invalidProviderBridgeResult<T>(): DesktopProviderResult<T> {
   }
 }
 
+function invalidPreferencesBridgeResult<T>(): DesktopPreferencesResult<T> {
+  return {
+    ok: false,
+    error: { code: 'INTERNAL_ERROR', message: 'Desktop preferences service returned an invalid response' }
+  }
+}
+
 export function createDesktopBridge(customIpc?: IpcInvokeTarget): DesktopApi {
   const ipc = customIpc ?? ipcRenderer
 
@@ -64,7 +81,7 @@ export function createDesktopBridge(customIpc?: IpcInvokeTarget): DesktopApi {
         const result = await ipc.invoke(DESKTOP_IPC_CHANNELS.CONVERSATION_GET_SNAPSHOT, {})
         const parsed = ConversationSnapshotResultSchema.safeParse(result)
         return parsed.success
-          ? structuredClone(parsed.data) as DesktopConversationResult<ConversationSnapshotDto>
+          ? (structuredClone(parsed.data) as DesktopConversationResult<ConversationSnapshotDto>)
           : invalidBridgeResult()
       },
       setCurrentTurn: async (
@@ -73,7 +90,7 @@ export function createDesktopBridge(customIpc?: IpcInvokeTarget): DesktopApi {
         const result = await ipc.invoke(DESKTOP_IPC_CHANNELS.CONVERSATION_SET_CURRENT, input)
         const parsed = ConversationSnapshotResultSchema.safeParse(result)
         return parsed.success
-          ? structuredClone(parsed.data) as DesktopConversationResult<ConversationSnapshotDto>
+          ? (structuredClone(parsed.data) as DesktopConversationResult<ConversationSnapshotDto>)
           : invalidBridgeResult()
       },
       startTurn: async (
@@ -82,14 +99,14 @@ export function createDesktopBridge(customIpc?: IpcInvokeTarget): DesktopApi {
         const result = await ipc.invoke(DESKTOP_IPC_CHANNELS.CONVERSATION_START_TURN, input)
         const parsed = ConversationTurnAcceptedResultSchema.safeParse(result)
         return parsed.success
-          ? structuredClone(parsed.data) as DesktopConversationResult<ConversationTurnAcceptedDto>
+          ? (structuredClone(parsed.data) as DesktopConversationResult<ConversationTurnAcceptedDto>)
           : invalidBridgeResult()
       },
       cancelTurn: async (): Promise<DesktopConversationResult<void>> => {
         const result = await ipc.invoke(DESKTOP_IPC_CHANNELS.CONVERSATION_CANCEL_TURN, {})
         const parsed = ConversationVoidResultSchema.safeParse(result)
         return parsed.success
-          ? structuredClone(parsed.data) as DesktopConversationResult<void>
+          ? (structuredClone(parsed.data) as DesktopConversationResult<void>)
           : invalidBridgeResult()
       },
       onEvent: (listener: (event: DesktopConversationEvent) => void): (() => void) => {
@@ -108,7 +125,7 @@ export function createDesktopBridge(customIpc?: IpcInvokeTarget): DesktopApi {
         const result = await ipc.invoke(DESKTOP_IPC_CHANNELS.PROVIDER_GET_SETTINGS, {})
         const parsed = ProviderSettingsResultSchema.safeParse(result)
         return parsed.success
-          ? structuredClone(parsed.data) as DesktopProviderResult<DesktopProviderSettingsDto>
+          ? (structuredClone(parsed.data) as DesktopProviderResult<DesktopProviderSettingsDto>)
           : invalidProviderBridgeResult()
       },
       saveSettings: async (
@@ -117,21 +134,21 @@ export function createDesktopBridge(customIpc?: IpcInvokeTarget): DesktopApi {
         const result = await ipc.invoke(DESKTOP_IPC_CHANNELS.PROVIDER_SAVE_SETTINGS, input)
         const parsed = ProviderVoidResultSchema.safeParse(result)
         return parsed.success
-          ? structuredClone(parsed.data) as DesktopProviderResult<void>
+          ? (structuredClone(parsed.data) as DesktopProviderResult<void>)
           : invalidProviderBridgeResult()
       },
       clearKey: async (): Promise<DesktopProviderResult<void>> => {
         const result = await ipc.invoke(DESKTOP_IPC_CHANNELS.PROVIDER_CLEAR_KEY, {})
         const parsed = ProviderVoidResultSchema.safeParse(result)
         return parsed.success
-          ? structuredClone(parsed.data) as DesktopProviderResult<void>
+          ? (structuredClone(parsed.data) as DesktopProviderResult<void>)
           : invalidProviderBridgeResult()
       },
       testConnection: async (): Promise<DesktopProviderResult<void>> => {
         const result = await ipc.invoke(DESKTOP_IPC_CHANNELS.PROVIDER_TEST_CONNECTION, {})
         const parsed = ProviderVoidResultSchema.safeParse(result)
         return parsed.success
-          ? structuredClone(parsed.data) as DesktopProviderResult<void>
+          ? (structuredClone(parsed.data) as DesktopProviderResult<void>)
           : invalidProviderBridgeResult()
       },
       listModels: async (
@@ -140,8 +157,42 @@ export function createDesktopBridge(customIpc?: IpcInvokeTarget): DesktopApi {
         const result = await ipc.invoke(DESKTOP_IPC_CHANNELS.PROVIDER_LIST_MODELS, input)
         const parsed = ProviderModelCatalogResultSchema.safeParse(result)
         return parsed.success
-          ? structuredClone(parsed.data) as DesktopProviderResult<DesktopModelCatalogDto>
+          ? (structuredClone(parsed.data) as DesktopProviderResult<DesktopModelCatalogDto>)
           : invalidProviderBridgeResult()
+      },
+      getDevPreset: async (): Promise<DesktopProviderResult<DesktopDevPresetDto | null>> => {
+        const result = await ipc.invoke(DESKTOP_IPC_CHANNELS.PROVIDER_GET_DEV_PRESET, {})
+        const parsed = ProviderDevPresetResultSchema.safeParse(result)
+        return parsed.success
+          ? (structuredClone(parsed.data) as DesktopProviderResult<DesktopDevPresetDto | null>)
+          : invalidProviderBridgeResult()
+      }
+    }),
+    preferences: Object.freeze({
+      getPreferences: async (): Promise<DesktopPreferencesResult<GenerationPreferencesDto>> => {
+        const result = await ipc.invoke(DESKTOP_IPC_CHANNELS.PREFERENCES_GET, {})
+        const parsed = PreferencesResultSchema.safeParse(result)
+        return parsed.success
+          ? (structuredClone(parsed.data) as DesktopPreferencesResult<GenerationPreferencesDto>)
+          : invalidPreferencesBridgeResult()
+      },
+      savePreferences: async (
+        input: SaveGenerationPreferencesInput
+      ): Promise<DesktopPreferencesResult<void>> => {
+        const result = await ipc.invoke(DESKTOP_IPC_CHANNELS.PREFERENCES_SAVE, input)
+        const parsed = PreferencesVoidResultSchema.safeParse(result)
+        return parsed.success
+          ? (structuredClone(parsed.data) as DesktopPreferencesResult<void>)
+          : invalidPreferencesBridgeResult()
+      },
+      setActiveFormat: async (
+        format: OutputFormat
+      ): Promise<DesktopPreferencesResult<void>> => {
+        const result = await ipc.invoke(DESKTOP_IPC_CHANNELS.PREFERENCES_SET_ACTIVE_FORMAT, { format })
+        const parsed = PreferencesVoidResultSchema.safeParse(result)
+        return parsed.success
+          ? (structuredClone(parsed.data) as DesktopPreferencesResult<void>)
+          : invalidPreferencesBridgeResult()
       }
     })
   })

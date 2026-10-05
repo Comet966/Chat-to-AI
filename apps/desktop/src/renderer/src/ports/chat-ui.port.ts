@@ -14,6 +14,8 @@ export interface ChatUiMessage {
   content: string
   timestamp: string
   isDemo?: boolean
+  declaredOutputFormat?: 'markdown' | 'html'
+  templateVersion?: number
 }
 
 export interface ChatUiState {
@@ -37,8 +39,12 @@ export interface SendChatMessageInput {
 }
 
 export interface ChatUiPort {
+  /** Starts external event subscriptions. Safe to call more than once or after dispose. */
+  connect?: () => void
   getState(): ChatUiState
   sendMessage(input: SendChatMessageInput): Promise<ChatUiResult<void>>
   cancel(): Promise<void>
   subscribe(listener: (state: ChatUiState) => void): () => void
+  /** Stops external subscriptions without invalidating local UI subscribers. */
+  dispose?: () => void
 }

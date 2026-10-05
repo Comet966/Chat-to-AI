@@ -1,3 +1,4 @@
+import type { DesktopDevPresetDto } from '../../../shared/provider.contract.js'
 import type {
   ProviderSettingsData,
   ProviderSettingsPort,
@@ -91,5 +92,9 @@ export class InMemoryProviderSettingsAdapter implements ProviderSettingsPort {
         message: 'UI Preview mode: model catalog is not connected.'
       }
     }
+  }
+
+  public async getDevPreset(): Promise<ProviderSettingsResult<DesktopDevPresetDto | null>> {
+    return { ok: true, value: null }
   }
 }

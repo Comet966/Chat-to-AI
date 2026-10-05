@@ -15,8 +15,10 @@ import type {
 } from '../../shared/conversation.contract.js'
 import {
   projectConversationTurns,
-  type ProjectedConversation
+  type ProjectedConversation,
+  type TurnFormatMetadata
 } from './conversation-turn.projector.js'
+import { GenerationPreferencesService } from '../preferences/generation-preferences.service.js'
 
 export interface ConversationModelProvider {
   getCurrentModel(): ModelExecutionDescriptor | null
@@ -35,11 +37,15 @@ export class MutableConversationModelProvider implements ConversationModelProvid
 }
 
 export class DesktopConversationService {
+  private readonly activeRequestFormats = new Map<string, TurnFormatMetadata>()
+  private readonly turnFormatMetadata = new Map<string, TurnFormatMetadata>()
+
   constructor(
     private readonly treeId: string,
     private readonly treeService: ConversationTreeService,
     private readonly runtime: ConversationRuntimeService,
-    private readonly modelProvider: ConversationModelProvider
+    private readonly modelProvider: ConversationModelProvider,
+    private readonly preferencesService: GenerationPreferencesService = new GenerationPreferencesService()
   ) {}
 
   public async getSnapshot(): Promise<DesktopConversationResult<ConversationSnapshotDto>> {
@@ -130,6 +136,21 @@ export class DesktopConversationService {
       contextSelection = { mode: 'root-path' }
     }
 
+    // Freeze current format preferences for this turn
+    const preferencesResult = this.preferencesService.getPreferences()
+    const preferences = preferencesResult.ok
+      ? preferencesResult.value
+      : { activeFormat: 'markdown' as const, markdownTemplate: '', htmlTemplate: '', version: 1 }
+    const activeTemplate =
+      preferences.activeFormat === 'html'
+        ? preferences.htmlTemplate
+        : preferences.markdownTemplate
+
+    const frozenFormat: TurnFormatMetadata = {
+      declaredOutputFormat: preferences.activeFormat,
+      templateVersion: preferences.version
+    }
+
     let acceptanceSettled = false
     let settleAcceptance:
       (result: DesktopConversationResult<ConversationTurnAcceptedDto>) => void = () => {}
@@ -143,15 +164,19 @@ export class DesktopConversationService {
       {
         treeId: this.treeId,
         prompt: input.prompt,
+        ...(activeTemplate ? { systemPrompt: activeTemplate } : {}),
         ...(basePair ? { selectedNodeId: basePair.assistantNodeId } : {}),
         contextSelection,
         model
       },
       {
         emit: (event) => {
-          if (event.type === 'conversation.turn.started' && !acceptanceSettled) {
-            acceptanceSettled = true
-            settleAcceptance({ ok: true, value: { requestId: event.requestId } })
+          if (event.type === 'conversation.turn.started') {
+            this.activeRequestFormats.set(event.requestId, frozenFormat)
+            if (!acceptanceSettled) {
+              acceptanceSettled = true
+              settleAcceptance({ ok: true, value: { requestId: event.requestId } })
+            }
           }
           this.forwardRuntimeEvent(event, sink)
         }
@@ -202,7 +227,7 @@ export class DesktopConversationService {
 
     const current = await this.runtime.getCurrentNode(this.treeId)
     const currentNodeId = current.ok ? current.value.id : null
-    return projectConversationTurns(tree.value, currentNodeId)
+    return projectConversationTurns(tree.value, currentNodeId, this.turnFormatMetadata)
   }
 
   private forwardRuntimeEvent(
@@ -230,6 +255,12 @@ export class DesktopConversationService {
       return
     }
     if (event.type === 'conversation.turn.completed') {
+      const frozen = this.activeRequestFormats.get(event.requestId)
+      this.activeRequestFormats.delete(event.requestId)
+      if (frozen) {
+        this.turnFormatMetadata.set(event.assistantNodeId, frozen)
+      }
+
       sink.emit({
         type: event.type,
         schemaVersion: 1,
@@ -250,6 +281,7 @@ export class DesktopConversationService {
       return
     }
     if (event.type === 'conversation.turn.cancelled') {
+      this.activeRequestFormats.delete(event.requestId)
       sink.emit({
         type: event.type,
         schemaVersion: 1,
@@ -258,6 +290,7 @@ export class DesktopConversationService {
       })
       return
     }
+    this.activeRequestFormats.delete(event.requestId)
     sink.emit({
       type: event.type,
       schemaVersion: 1,

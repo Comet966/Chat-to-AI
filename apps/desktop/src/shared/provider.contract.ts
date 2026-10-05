@@ -1,4 +1,5 @@
 export type DesktopProviderKind = 'openai-compatible' | 'anthropic' | 'gemini'
+export type DesktopCatalogMode = 'provider-native' | 'openai-compatible' | 'manual-only'
 
 export interface DesktopProviderSettingsDto {
   provider: DesktopProviderKind
@@ -9,6 +10,8 @@ export interface DesktopProviderSettingsDto {
   modelId: string
   maxOutputTokens: number
   anthropicVersion?: string
+  catalogMode?: DesktopCatalogMode
+  catalogBaseUrl?: string
 }
 
 export interface DesktopProviderSettingsInput {
@@ -19,6 +22,8 @@ export interface DesktopProviderSettingsInput {
   modelId: string
   maxOutputTokens: number
   anthropicVersion?: string
+  catalogMode?: DesktopCatalogMode
+  catalogBaseUrl?: string
 }
 
 export type DesktopProviderErrorCode =
@@ -42,4 +47,16 @@ export type DesktopProviderResult<T> =
 export interface DesktopModelCatalogDto {
   models: readonly string[]
   supportsManualEntry: true
+  actualCatalogMode?: DesktopCatalogMode
+}
+
+export interface DesktopDevPresetDto {
+  provider: DesktopProviderKind
+  baseUrl: string
+  modelId: string
+  maxOutputTokens: number
+  anthropicVersion?: string
+  catalogMode: DesktopCatalogMode
+  catalogBaseUrl?: string
+  hasApiKey: boolean
 }

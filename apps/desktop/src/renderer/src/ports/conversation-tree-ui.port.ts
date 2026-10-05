@@ -67,10 +67,14 @@ export interface DeleteNodesInput {
 }
 
 export interface ConversationTreeUiPort {
+  /** Starts external event subscriptions. Safe to call more than once or after dispose. */
+  connect?: () => void
   getSnapshot(): Promise<ConversationTreeResult<ConversationTreeSnapshot>>
   subscribe(listener: (snapshot: ConversationTreeSnapshot) => void): () => void
   setCurrentNode(nodeId: string): Promise<ConversationTreeResult<ConversationTreeSnapshot>>
   addChildNode(input: AddChildNodeInput): Promise<ConversationTreeResult<ConversationTreeSnapshot>>
   deleteNodes(input: DeleteNodesInput): Promise<ConversationTreeResult<ConversationTreeSnapshot>>
   reload(): Promise<ConversationTreeResult<ConversationTreeSnapshot>>
+  /** Stops external subscriptions without invalidating local UI subscribers. */
+  dispose?: () => void
 }

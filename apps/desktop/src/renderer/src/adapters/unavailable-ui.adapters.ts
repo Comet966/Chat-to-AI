@@ -17,6 +17,16 @@ import type {
   ProviderSettingsResult
 } from '../ports/provider-settings.port.js'
 
+import type {
+  GenerationPreferencesPort,
+  PreferencesPortResult
+} from '../ports/generation-preferences.port.js'
+import type {
+  GenerationPreferencesDto,
+  OutputFormat,
+  SaveGenerationPreferencesInput
+} from '../../../shared/preferences.contract.js'
+
 const unavailableError = { code: 'SERVICE_UNAVAILABLE', message: 'Desktop service is unavailable' } as const
 
 export class UnavailableChatUiAdapter implements ChatUiPort {
@@ -57,6 +67,21 @@ export class UnavailableProviderSettingsAdapter implements ProviderSettingsPort 
   public async clearKey(): Promise<void> {}
   public async testConnection(): Promise<ProviderSettingsResult<void>> { return this.failure() }
   public async listModels(_data: ProviderSettingsData): Promise<ProviderSettingsResult<readonly string[]>> {
+    return this.failure()
+  }
+}
+
+export class UnavailableGenerationPreferencesAdapter implements GenerationPreferencesPort {
+  private failure<T>(): PreferencesPortResult<T> {
+    return { ok: false, error: { code: 'INTERNAL_ERROR', message: unavailableError.message } }
+  }
+  public async getPreferences(): Promise<PreferencesPortResult<GenerationPreferencesDto>> {
+    return this.failure()
+  }
+  public async savePreferences(_input: SaveGenerationPreferencesInput): Promise<PreferencesPortResult<void>> {
+    return this.failure()
+  }
+  public async setActiveFormat(_format: OutputFormat): Promise<PreferencesPortResult<void>> {
     return this.failure()
   }
 }

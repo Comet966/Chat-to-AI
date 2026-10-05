@@ -56,7 +56,9 @@ export const ConversationTurnSchema = z.object({
   providerInfo: z.object({
     provider: z.string().min(1).max(128),
     modelId: z.string().min(1).max(256)
-  }).strict().optional()
+  }).strict().optional(),
+  declaredOutputFormat: z.enum(['markdown', 'html']).optional(),
+  templateVersion: z.number().int().positive().optional()
 }).strict()
 
 export const ConversationSnapshotSchema = z.object({
@@ -121,9 +123,12 @@ export const ProviderSettingsInputSchema = z.object({
   provider: z.enum(['openai-compatible', 'anthropic', 'gemini']),
   baseUrl: z.string().min(1).max(2048),
   apiKey: z.string().max(4096),
+  hasApiKey: z.boolean().optional(),
   modelId: z.string().min(1).max(256),
   maxOutputTokens: z.number().int().positive().max(1_000_000),
-  anthropicVersion: z.string().min(1).max(64).optional()
+  anthropicVersion: z.string().min(1).max(64).optional(),
+  catalogMode: z.enum(['provider-native', 'openai-compatible', 'manual-only']).optional(),
+  catalogBaseUrl: z.string().min(1).max(2048).optional()
 }).strict()
 
 export const ProviderSettingsSchema = ProviderSettingsInputSchema.extend({
@@ -161,8 +166,66 @@ export const ProviderModelCatalogResultSchema = z.union([
     ok: z.literal(true),
     value: z.object({
       models: z.array(z.string().min(1).max(256)).max(500),
-      supportsManualEntry: z.literal(true)
+      supportsManualEntry: z.literal(true),
+      actualCatalogMode: z.enum(['provider-native', 'openai-compatible', 'manual-only']).optional()
     }).strict()
   }).strict(),
   ProviderResultErrorSchema
+])
+
+export const DesktopDevPresetSchema = z.object({
+  provider: z.enum(['openai-compatible', 'anthropic', 'gemini']),
+  baseUrl: z.string().min(1).max(2048),
+  modelId: z.string().min(1).max(256),
+  maxOutputTokens: z.number().int().positive().max(1_000_000),
+  anthropicVersion: z.string().min(1).max(64).optional(),
+  catalogMode: z.enum(['provider-native', 'openai-compatible', 'manual-only']),
+  catalogBaseUrl: z.string().min(1).max(2048).optional(),
+  hasApiKey: z.boolean()
+}).strict()
+
+export const ProviderDevPresetResultSchema = z.union([
+  z.object({ ok: z.literal(true), value: DesktopDevPresetSchema.nullable() }).strict(),
+  ProviderResultErrorSchema
+])
+
+// Generation Preferences Schemas
+export const OutputFormatSchema = z.enum(['markdown', 'html'])
+
+export const GenerationPreferencesSchema = z.object({
+  activeFormat: OutputFormatSchema,
+  markdownTemplate: z.string().min(10).max(4000),
+  htmlTemplate: z.string().min(10).max(4000),
+  version: z.number().int().positive()
+}).strict()
+
+export const SaveGenerationPreferencesInputSchema = z.object({
+  activeFormat: OutputFormatSchema,
+  markdownTemplate: z.string().min(10).max(4000),
+  htmlTemplate: z.string().min(10).max(4000)
+}).strict()
+
+export const SetActiveFormatInputSchema = z.object({
+  format: OutputFormatSchema
+}).strict()
+
+export const DesktopPreferencesErrorSchema = z.object({
+  code: z.enum(['VALIDATION_FAILED', 'UNAUTHORIZED_SENDER', 'INTERNAL_ERROR']),
+  message: z.string().max(2000),
+  field: z.string().max(128).optional()
+}).strict()
+
+const PreferencesResultErrorSchema = z.object({
+  ok: z.literal(false),
+  error: DesktopPreferencesErrorSchema
+}).strict()
+
+export const PreferencesResultSchema = z.union([
+  z.object({ ok: z.literal(true), value: GenerationPreferencesSchema }).strict(),
+  PreferencesResultErrorSchema
+])
+
+export const PreferencesVoidResultSchema = z.union([
+  z.object({ ok: z.literal(true), value: z.undefined() }).strict(),
+  PreferencesResultErrorSchema
 ])

@@ -1,3 +1,5 @@
+import type { DesktopCatalogMode, DesktopDevPresetDto } from '../../../shared/provider.contract.js'
+
 export type ProviderKind = 'openai-compatible' | 'anthropic' | 'gemini'
 
 export interface ProviderSettingsData {
@@ -8,6 +10,8 @@ export interface ProviderSettingsData {
   modelId: string
   maxOutputTokens: number
   anthropicVersion?: string
+  catalogMode?: DesktopCatalogMode
+  catalogBaseUrl?: string
 }
 
 export type ProviderSettingsErrorCode =
@@ -37,4 +41,5 @@ export interface ProviderSettingsPort {
   clearKey(): Promise<void>
   testConnection(): Promise<ProviderSettingsResult<void>>
   listModels(data: ProviderSettingsData): Promise<ProviderSettingsResult<readonly string[]>>
+  getDevPreset?(): Promise<ProviderSettingsResult<DesktopDevPresetDto | null>>
 }

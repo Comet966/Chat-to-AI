@@ -1,12 +1,22 @@
 import React from 'react'
+import type { MessageRenderMode } from './MessageContent.js'
+import { RenderModeToggle } from './RenderModeToggle.js'
 
 export interface ChatHeaderProps {
   provider: string
   modelId: string
   runtimeMode: 'real' | 'preview' | 'unavailable'
+  renderMode: MessageRenderMode
+  onRenderModeChange: (mode: MessageRenderMode) => void
 }
 
-export function ChatHeader({ provider, modelId, runtimeMode }: ChatHeaderProps) {
+export function ChatHeader({
+  provider,
+  modelId,
+  runtimeMode,
+  renderMode,
+  onRenderModeChange
+}: ChatHeaderProps) {
   return (
     <header className="chat-header">
       <div className="chat-header-info">
@@ -15,12 +25,15 @@ export function ChatHeader({ provider, modelId, runtimeMode }: ChatHeaderProps) 
           Active Model: <strong>{modelId}</strong> ({provider})
         </span>
       </div>
-      <div className="chat-header-badge">
-        {runtimeMode === 'real'
-          ? 'Desktop Runtime Connected'
-          : runtimeMode === 'preview'
-            ? 'Demo Adapter Active'
-            : 'Desktop Runtime Unavailable'}
+      <div className="chat-header-actions">
+        <RenderModeToggle mode={renderMode} onChange={onRenderModeChange} />
+        <div className="chat-header-badge">
+          {runtimeMode === 'real'
+            ? 'Desktop Runtime Connected'
+            : runtimeMode === 'preview'
+              ? 'Demo Adapter Active'
+              : 'Desktop Runtime Unavailable'}
+        </div>
       </div>
     </header>
   )

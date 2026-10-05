@@ -23,6 +23,10 @@ describe('Preload Desktop API Bridge', () => {
     expect(Object.isFrozen(bridge.app)).toBe(true)
     expect(Object.isFrozen(bridge.conversation)).toBe(true)
     expect(Object.isFrozen(bridge.provider)).toBe(true)
+    expect(Object.isFrozen(bridge.preferences)).toBe(true)
+    expect(typeof bridge.preferences.getPreferences).toBe('function')
+    expect(typeof bridge.preferences.savePreferences).toBe('function')
+    expect(typeof bridge.preferences.setActiveFormat).toBe('function')
   })
 
   it('should delegate getInfo to ipc invoke with correct channel', async () => {

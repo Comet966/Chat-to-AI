@@ -7,11 +7,18 @@ import type {
   StartConversationTurnInput
 } from './conversation.contract.js'
 import type {
+  DesktopDevPresetDto,
   DesktopModelCatalogDto,
   DesktopProviderResult,
   DesktopProviderSettingsDto,
   DesktopProviderSettingsInput
 } from './provider.contract.js'
+import type {
+  DesktopPreferencesResult,
+  GenerationPreferencesDto,
+  OutputFormat,
+  SaveGenerationPreferencesInput
+} from './preferences.contract.js'
 
 export const DESKTOP_IPC_CHANNELS = {
   APP_GET_INFO: 'desktop:app:get-info',
@@ -24,7 +31,11 @@ export const DESKTOP_IPC_CHANNELS = {
   PROVIDER_SAVE_SETTINGS: 'desktop:provider:settings:save',
   PROVIDER_CLEAR_KEY: 'desktop:provider:key:clear',
   PROVIDER_TEST_CONNECTION: 'desktop:provider:connection:test',
-  PROVIDER_LIST_MODELS: 'desktop:provider:models:list'
+  PROVIDER_LIST_MODELS: 'desktop:provider:models:list',
+  PROVIDER_GET_DEV_PRESET: 'desktop:provider:dev-preset:get',
+  PREFERENCES_GET: 'desktop:preferences:get',
+  PREFERENCES_SAVE: 'desktop:preferences:save',
+  PREFERENCES_SET_ACTIVE_FORMAT: 'desktop:preferences:set-active-format'
 } as const
 
 export type DesktopIpcChannel =
@@ -75,6 +86,12 @@ export interface DesktopApi {
     clearKey(): Promise<DesktopProviderResult<void>>
     testConnection(): Promise<DesktopProviderResult<void>>
     listModels(input: DesktopProviderSettingsInput): Promise<DesktopProviderResult<DesktopModelCatalogDto>>
+    getDevPreset(): Promise<DesktopProviderResult<DesktopDevPresetDto | null>>
+  }
+  preferences: {
+    getPreferences(): Promise<DesktopPreferencesResult<GenerationPreferencesDto>>
+    savePreferences(input: SaveGenerationPreferencesInput): Promise<DesktopPreferencesResult<void>>
+    setActiveFormat(format: OutputFormat): Promise<DesktopPreferencesResult<void>>
   }
 }
 

@@ -11,13 +11,31 @@ import type {
 export class ElectronConversationTreeUiAdapter implements ConversationTreeUiPort {
   private snapshot: ConversationTreeSnapshot | null = null
   private readonly listeners = new Set<(snapshot: ConversationTreeSnapshot) => void>()
+  private unsubscribeEvent: (() => void) | null = null
+  /**
+   * Changes whenever an accepted snapshot replaces the local cache.
+   *
+   * IPC invoke responses and pushed events travel independently. A reload that
+   * started before a newer event can therefore finish after that event. Keeping
+   * this generation lets request responses avoid rolling the cache back when
+   * they have been overtaken by a pushed snapshot with the same revision.
+   */
+  private snapshotGeneration = 0
 
-  constructor(private readonly api: DesktopApi['conversation']) {
-    this.api.onEvent((event) => {
+  constructor(private readonly api: DesktopApi['conversation']) {}
+
+  public connect(): void {
+    if (this.unsubscribeEvent) return
+    this.unsubscribeEvent = this.api.onEvent((event) => {
       if (event.type === 'conversation.snapshot.changed') {
         this.updateSnapshot(this.mapSnapshot(event.snapshot))
       }
     })
+  }
+
+  public dispose(): void {
+    this.unsubscribeEvent?.()
+    this.unsubscribeEvent = null
   }
 
   public async getSnapshot(): Promise<ConversationTreeResult<ConversationTreeSnapshot>> {
@@ -39,14 +57,15 @@ export class ElectronConversationTreeUiAdapter implements ConversationTreeUiPort
       if (!reloaded.ok) return reloaded
       current = reloaded.value
     }
+    const generationAtRequestStart = this.snapshotGeneration
     const result = await this.api.setCurrentTurn({
       turnId: nodeId,
       expectedRevision: current.revision
     })
     if (!result.ok) return this.mapFailure(result.error.code, result.error.message)
     const snapshot = this.mapSnapshot(result.value)
-    this.updateSnapshot(snapshot)
-    return { ok: true, value: this.cloneSnapshot(snapshot) }
+    const acceptedSnapshot = this.updateSnapshot(snapshot, generationAtRequestStart)
+    return { ok: true, value: this.cloneSnapshot(acceptedSnapshot) }
   }
 
   public async addChildNode(
@@ -62,11 +81,12 @@ export class ElectronConversationTreeUiAdapter implements ConversationTreeUiPort
   }
 
   public async reload(): Promise<ConversationTreeResult<ConversationTreeSnapshot>> {
+    const generationAtRequestStart = this.snapshotGeneration
     const result = await this.api.getSnapshot()
     if (!result.ok) return this.mapFailure(result.error.code, result.error.message)
     const snapshot = this.mapSnapshot(result.value)
-    this.updateSnapshot(snapshot)
-    return { ok: true, value: this.cloneSnapshot(snapshot) }
+    const acceptedSnapshot = this.updateSnapshot(snapshot, generationAtRequestStart)
+    return { ok: true, value: this.cloneSnapshot(acceptedSnapshot) }
   }
 
   private mapSnapshot(snapshot: ConversationSnapshotDto): ConversationTreeSnapshot {
@@ -87,9 +107,34 @@ export class ElectronConversationTreeUiAdapter implements ConversationTreeUiPort
     }
   }
 
-  private updateSnapshot(snapshot: ConversationTreeSnapshot): void {
+  private updateSnapshot(
+    snapshot: ConversationTreeSnapshot,
+    generationAtRequestStart?: number
+  ): ConversationTreeSnapshot {
+    const current = this.snapshot
+    if (current?.treeId === snapshot.treeId) {
+      // Tree revisions are monotonic. Never let an out-of-order IPC response or
+      // event remove nodes that are already present in a newer local snapshot.
+      if (snapshot.revision < current.revision) {
+        return current
+      }
+
+      // A request that began before another accepted update is stale at an
+      // equal revision as well. This matters for cursor-only updates, which do
+      // not necessarily mutate the underlying tree version.
+      if (
+        snapshot.revision === current.revision &&
+        generationAtRequestStart !== undefined &&
+        generationAtRequestStart !== this.snapshotGeneration
+      ) {
+        return current
+      }
+    }
+
     this.snapshot = this.cloneSnapshot(snapshot)
-    for (const listener of this.listeners) listener(this.cloneSnapshot(snapshot))
+    ++this.snapshotGeneration
+    for (const listener of this.listeners) listener(this.cloneSnapshot(this.snapshot))
+    return this.snapshot
   }
 
   private cloneSnapshot(snapshot: ConversationTreeSnapshot): ConversationTreeSnapshot {

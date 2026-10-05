@@ -24,7 +24,8 @@ export class AnthropicMessagesModelAdapter implements ChatModelPort {
   private readonly anthropicVersion: string
 
   constructor(options: AnthropicMessagesModelAdapterOptions) {
-    this.baseUrl = (options.baseUrl || DEFAULT_ANTHROPIC_BASE_URL).replace(/\/+$/, '')
+    const raw = (options.baseUrl || DEFAULT_ANTHROPIC_BASE_URL).replace(/\/+$/, '')
+    this.baseUrl = raw.endsWith('/v1') ? raw.slice(0, -3) : raw
     this.apiKey = options.apiKey
     this.modelId = options.modelId
     this.maxOutputTokens = options.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS

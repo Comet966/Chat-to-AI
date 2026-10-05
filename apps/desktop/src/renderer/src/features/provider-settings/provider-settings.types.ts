@@ -19,6 +19,7 @@ export interface ProviderSettingsFormState {
 export type ProviderSettingsAction =
   | { type: 'fieldChanged'; field: keyof ProviderSettingsData; value: string | number }
   | { type: 'providerChanged'; provider: ProviderKind }
+  | { type: 'applyPreset'; preset: Partial<ProviderSettingsData> }
   | { type: 'toggleShowApiKey' }
   | { type: 'clearApiKey' }
   | { type: 'validationFailed'; errors: Partial<Record<keyof ProviderSettingsData, string>> }

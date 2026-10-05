@@ -2,11 +2,13 @@ import React, { createContext, useContext } from 'react'
 import type { ProviderSettingsPort } from './provider-settings.port.js'
 import type { ChatUiPort } from './chat-ui.port.js'
 import type { ConversationTreeUiPort } from './conversation-tree-ui.port.js'
+import type { GenerationPreferencesPort } from './generation-preferences.port.js'
 
 export interface AppPorts {
   providerSettings: ProviderSettingsPort
   chatUi: ChatUiPort
   conversationTree: ConversationTreeUiPort
+  preferences: GenerationPreferencesPort
   runtimeMode?: 'real' | 'preview' | 'unavailable'
 }
 

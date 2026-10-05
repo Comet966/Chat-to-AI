@@ -36,6 +36,7 @@ export type ConversationContextSelection =
 export interface SendConversationMessageCommand {
   readonly treeId: ConversationTreeId
   readonly prompt: string
+  readonly systemPrompt?: string
   /** Controls context construction independently from the node used as the new branch parent. */
   readonly contextSelection?: ConversationContextSelection
   readonly selectedNodeId?: ConversationNodeId

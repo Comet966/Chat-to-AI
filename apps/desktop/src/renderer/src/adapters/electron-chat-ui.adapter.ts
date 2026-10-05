@@ -13,12 +13,33 @@ export class ElectronChatUiAdapter implements ChatUiPort {
   private readonly listeners = new Set<(state: ChatUiState) => void>()
   private activeRequestId: string | null = null
   private pendingAssistantId: string | null = null
+  private receivedDeltas: string[] = []
+  private unsubscribeEvent: (() => void) | null = null
+  private connectionGeneration = 0
+  private stateGeneration = 0
 
-  constructor(private readonly api: DesktopApi['conversation']) {
-    this.api.onEvent((event) => this.handleEvent(event))
+  constructor(private readonly api: DesktopApi['conversation']) {}
+
+  public connect(): void {
+    if (this.unsubscribeEvent) return
+
+    const connectionGeneration = ++this.connectionGeneration
+    const stateGeneration = this.stateGeneration
+    this.unsubscribeEvent = this.api.onEvent((event) => this.handleEvent(event))
     void this.api.getSnapshot().then((result) => {
-      if (result.ok) this.syncFromSnapshot(result.value)
+      const isCurrentConnection =
+        connectionGeneration === this.connectionGeneration && this.unsubscribeEvent !== null
+      const stateIsUnchanged = stateGeneration === this.stateGeneration
+      if (isCurrentConnection && stateIsUnchanged && result.ok) {
+        this.syncFromSnapshot(result.value)
+      }
     })
+  }
+
+  public dispose(): void {
+    ++this.connectionGeneration
+    this.unsubscribeEvent?.()
+    this.unsubscribeEvent = null
   }
 
   public getState(): ChatUiState {
@@ -40,6 +61,7 @@ export class ElectronChatUiAdapter implements ChatUiPort {
     const localId = `${Date.now()}-${Math.random().toString(36).slice(2)}`
     this.pendingAssistantId = `pending-assistant-${localId}`
     this.activeRequestId = null
+    this.receivedDeltas = []
     this.setState({
       status: 'streaming',
       error: null,
@@ -66,6 +88,8 @@ export class ElectronChatUiAdapter implements ChatUiPort {
     })
     if (!result.ok) {
       this.removePendingAssistant()
+      this.activeRequestId = null
+      this.receivedDeltas = []
       this.setState({ status: 'failed', error: result.error.message })
       return { ok: false, error: result.error }
     }
@@ -90,29 +114,37 @@ export class ElectronChatUiAdapter implements ChatUiPort {
     if (event.requestId !== this.activeRequestId) return
 
     if (event.type === 'conversation.turn.delta') {
-      if (!this.pendingAssistantId) return
+      if (!this.pendingAssistantId || this.state.status !== 'streaming') return
+      if (event.sequence < 0) return
+      this.receivedDeltas[event.sequence] = event.delta
+      const canonicalContent = this.receivedDeltas.join('')
       this.setState({
         messages: this.state.messages.map((message) =>
           message.id === this.pendingAssistantId
-            ? { ...message, content: message.content + event.delta }
+            ? { ...message, content: canonicalContent }
             : message
         )
       })
       return
     }
     if (event.type === 'conversation.turn.completed') {
+      if (this.state.status !== 'streaming') return
       this.setState({ status: 'completed' })
       return
     }
     if (event.type === 'conversation.turn.cancelled') {
+      if (this.state.status !== 'streaming') return
       this.removePendingAssistant()
       this.activeRequestId = null
+      this.receivedDeltas = []
       this.setState({ status: 'cancelled' })
       return
     }
     if (event.type === 'conversation.turn.failed') {
+      if (this.state.status !== 'streaming') return
       this.removePendingAssistant()
       this.activeRequestId = null
+      this.receivedDeltas = []
       this.setState({ status: 'failed', error: event.error.message })
     }
   }
@@ -142,7 +174,9 @@ export class ElectronChatUiAdapter implements ChatUiPort {
         id: turn.id,
         role: 'assistant' as const,
         content: turn.answer,
-        timestamp: turn.createdAt
+        timestamp: turn.createdAt,
+        declaredOutputFormat: turn.declaredOutputFormat,
+        templateVersion: turn.templateVersion
       }
     ])
     this.pendingAssistantId = null
@@ -158,6 +192,7 @@ export class ElectronChatUiAdapter implements ChatUiPort {
   }
 
   private setState(patch: Partial<ChatUiState>): void {
+    ++this.stateGeneration
     this.state = { ...this.state, ...patch }
     const snapshot = this.getState()
     for (const listener of this.listeners) listener(snapshot)

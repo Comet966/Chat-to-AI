@@ -36,7 +36,7 @@ describe('ProviderTransport', () => {
     expect(service.saveSettings).not.toHaveBeenCalled()
   })
 
-  it('registers and removes five provider handlers', () => {
+  it('registers and removes six provider handlers', () => {
     const service = {} as ProviderRuntimeService
     const ipc = { handle: vi.fn(), removeHandler: vi.fn() }
     const transport = new ProviderTransport(
@@ -45,8 +45,8 @@ describe('ProviderTransport', () => {
       ipc
     )
     const unregister = transport.register()
-    expect(ipc.handle).toHaveBeenCalledTimes(5)
+    expect(ipc.handle).toHaveBeenCalledTimes(6)
     unregister()
-    expect(ipc.removeHandler).toHaveBeenCalledTimes(5)
+    expect(ipc.removeHandler).toHaveBeenCalledTimes(6)
   })
 })

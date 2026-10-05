@@ -1,12 +1,14 @@
 import React from 'react'
 import type { ChatUiMessage } from './chat-ui.types.js'
 import { MessageItem } from './MessageItem.js'
+import type { MessageRenderMode } from './MessageContent.js'
 
 export interface MessageListProps {
   messages: ChatUiMessage[]
+  renderMode: MessageRenderMode
 }
 
-export function MessageList({ messages }: MessageListProps) {
+export function MessageList({ messages, renderMode }: MessageListProps) {
   if (messages.length === 0) {
     return (
       <div className="message-list-empty">
@@ -23,7 +25,7 @@ export function MessageList({ messages }: MessageListProps) {
   return (
     <div className="message-list">
       {messages.map((message) => (
-        <MessageItem key={message.id} message={message} />
+        <MessageItem key={message.id} message={message} renderMode={renderMode} />
       ))}
     </div>
   )
