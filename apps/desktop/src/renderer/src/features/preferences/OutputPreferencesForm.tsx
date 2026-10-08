@@ -121,7 +121,7 @@ export function OutputPreferencesForm({ port }: OutputPreferencesFormProps) {
         <Field
           label="HTML Prompt Template"
           htmlFor="html-template"
-          hint="注入到模型 System Message 中，要求模型只输出受限安全的 HTML 片段与内联 SVG"
+          hint="支持安全语义组件与静态 SVG；仅在明确需要时生成小型脚本，并由用户手动在无网络隔离沙箱中运行"
         >
           <textarea
             id="html-template"

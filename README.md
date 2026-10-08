@@ -75,12 +75,14 @@ pnpm test
   - 切换渲染模式自动同步下一轮生成的输出约束偏好，历史消息记录对应的只读 `declaredOutputFormat` 格式元数据。
 - **富文本与双渲染增强**：
   - **LaTeX 数学公式**：Markdown 模式支持 KaTeX 解析行内公式 (`$...$`) 与块级公式 (`$$...$$`)，公式溢出横向平滑滚动，语法异常时优雅降级而不崩溃；
-  - **安全内联 SVG**：HTML 模式支持安全的内联 `<svg>` 图形渲染（包括 `path`, `rect`, `circle`, `line`, `polygon`, `text`, `linearGradient` 等）；
-  - **强安全防护**：继续执行集中严格净化，坚决移除 `script`, `style`, `foreignObject`, `use`, `animate`, `iframe`, `form` 以及所有外链、图片、媒体资源与内联事件；阻止所有外链在 WebView 中直接跳转；
+  - **安全 HTML 组件**：HTML 模式支持标题、列表、表格、代码块、`figure/figcaption`、`details/summary`、`progress` 与 `meter` 等静态语义组件；
+  - **安全内联 SVG**：支持同一回复中的多个静态 `<svg>`，以及 `path`, `rect`, `circle`, `text`, `linearGradient`, `clipPath`, `mask`, `marker` 等常用图形能力；
+  - **隔离交互预览**：模型生成的 JavaScript 永不进入主对话 DOM；包含交互逻辑时可展开查看源码，并由用户手动启动无同源权限、无网络、无 Electron/Node 能力的 sandbox iframe，可随时停止；
+  - **强安全防护**：主渲染层集中移除 `script`, `style`, `foreignObject`, `use`, `animate`, `iframe`, `form`、自定义可执行组件、外部资源与内联事件；隔离预览继续禁止网络、导航、弹窗、存储、Worker、外部媒体与设备权限；
   - 用户输入严格保持纯文本安全显示。
 - **供应商目录协议解耦与本地预设**：
   - **生成与目录协议分离**：支持将 Anthropic Messages 生成协议与 OpenAI-compatible (`/v1/models`) 目录协议独立组合，适配各类本地反向代理与网关；支持 `manual-only` 纯手动输入模式；
-  - **本地开发测试预设**：设置显式环境变量 `DESKTOP_ENABLE_LOCAL_PROVIDER_PRESET=1` 并在 `.env.local` 提供密钥后，Electron 启动时会自动加载本地 Anthropic 测试供应商；设置页仍可手动重新载入预设（参考 `.env.local.example`），严禁将任何真实密钥硬编码或提交入库。
+  - **本地开发测试预设**：未打包的 Electron 默认使用 OpenAI-compatible 回环网关 `http://127.0.0.1:8317/v1` 和测试 Key `1145141919810`；设置页可手动重新载入预设。默认模型暂用 `gpt-4o`，若网关不提供此模型，请先在设置页获取模型列表并选择可用项。可通过 `.env.local` 中的 `LOCAL_OPENAI_*` 覆盖，或设置 `DESKTOP_ENABLE_LOCAL_PROVIDER_PRESET=0` 关闭；打包版不内置该预设（参考 `.env.local.example`）。
 - **安全与边界规范**：
   - 严格开启 `contextIsolation: true`、`sandbox: true`、`nodeIntegration: false`；
   - 渲染层禁止导入任何 Electron、Node.js 原生模块或模型适配器内核。

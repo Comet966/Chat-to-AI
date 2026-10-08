@@ -158,7 +158,7 @@ export function ProviderSettingsForm({
           <div className="dev-preset-info">
             <span className="dev-preset-badge">DEV PRESET</span>
             <span className="dev-preset-desc">
-              本地测试预设（Anthropic 生成 + OpenAI 目录代理）
+              本地测试预设（OpenAI 兼容协议 · 127.0.0.1）
             </span>
           </div>
           <Button

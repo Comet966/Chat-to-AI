@@ -253,11 +253,92 @@
 }
 
 .message-format-notice,
-.message-content-svg-fallback > p {
+.message-content-svg-fallback > p,
+.message-content-security-notice {
   margin: var(--space-2) 0 0;
   color: var(--color-text-muted);
   font-size: 0.75rem;
   line-height: 1.45;
+}
+
+.message-content-security-notice {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-warning-border-soft);
+  border-radius: var(--radius-md);
+  background: var(--color-warning-bg);
+}
+
+.message-content-html-container {
+  min-width: 0;
+}
+
+.sandboxed-html-preview {
+  margin-top: var(--space-3);
+  overflow: hidden;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-soft);
+}
+
+.sandboxed-html-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3);
+}
+
+.sandboxed-html-preview-header strong {
+  display: block;
+  color: var(--color-text-primary);
+  font-size: 0.84rem;
+}
+
+.sandboxed-html-preview-header p,
+.sandboxed-html-preview-error {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+.sandboxed-html-preview-actions {
+  flex-shrink: 0;
+}
+
+.sandboxed-html-preview-error {
+  padding: 0 var(--space-3) var(--space-3);
+  color: var(--color-danger);
+}
+
+.sandboxed-html-preview-frame {
+  display: block;
+  width: 100%;
+  min-height: 360px;
+  border: 0;
+  border-top: 1px solid var(--color-border);
+  background: white;
+}
+
+.message-content-html-source {
+  margin-top: var(--space-3);
+  color: var(--color-text-secondary);
+  font-size: 0.78rem;
+}
+
+.message-content-html-source summary {
+  cursor: pointer;
+}
+
+.message-content-html-source pre {
+  max-height: 24rem;
+  margin: var(--space-2) 0 0;
+  padding: var(--space-3);
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-soft);
+  white-space: pre;
 }
 
 .message-content-svg-fallback {
@@ -508,6 +589,36 @@
   height: auto;
   display: block;
   margin: var(--space-2) 0;
+}
+
+.message-content-rendered details {
+  margin: var(--space-3) 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-soft);
+}
+
+.message-content-rendered summary {
+  cursor: pointer;
+  font-weight: 650;
+  color: var(--color-text-primary);
+}
+
+.message-content-rendered figure {
+  margin: var(--space-4) 0;
+}
+
+.message-content-rendered figcaption {
+  margin-top: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+}
+
+.message-content-rendered progress,
+.message-content-rendered meter {
+  width: min(100%, 28rem);
+  max-width: 100%;
 }
 
 /* Chat Composer - Floating Card */

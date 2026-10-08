@@ -30,6 +30,25 @@ describe('ProviderRuntimeService', () => {
     })
   })
 
+  it('does not carry the configured key to a different endpoint without explicit input', () => {
+    const service = new ProviderRuntimeService({
+      modelProvider: new MutableConversationModelProvider(),
+      hasActiveTurn: () => false,
+      fetchImpl: vi.fn()
+    })
+    expect(service.saveSettings(baseInput).ok).toBe(true)
+
+    const changedEndpoint = service.saveSettings({
+      ...baseInput,
+      baseUrl: 'https://another.example.test/v1',
+      apiKey: ''
+    })
+    expect(changedEndpoint).toMatchObject({
+      ok: false,
+      error: { code: 'VALIDATION_FAILED', field: 'apiKey' }
+    })
+  })
+
   it('loads, deduplicates, and sorts an OpenAI-compatible model catalog', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       data: [{ id: 'model-z' }, { id: 'model-a' }, { id: 'model-a' }]

@@ -10,6 +10,11 @@ import {
   MAX_SVG_VIEWBOX_DIMENSION,
   sanitizeAssistantHtml
 } from '../../apps/desktop/src/renderer/src/features/chat/MessageContent.js'
+import {
+  buildSandboxedHtmlDocument,
+  MAX_INTERACTIVE_HTML_LENGTH,
+  MAX_INTERACTIVE_SCRIPT_COUNT
+} from '../../apps/desktop/src/renderer/src/features/chat/SandboxedHtmlPreview.js'
 import { MessageItem } from '../../apps/desktop/src/renderer/src/features/chat/MessageItem.js'
 import { RenderModeToggle } from '../../apps/desktop/src/renderer/src/features/chat/RenderModeToggle.js'
 
@@ -154,6 +159,25 @@ describe('MessageContent - HTML mode and Sanitization', () => {
     expect(container.querySelector('td')?.textContent).toBe('Val A')
   })
 
+  it('renders supported declarative HTML components without JavaScript', () => {
+    const html = [
+      '<details open><summary>More information</summary><p>Static disclosure content.</p></details>',
+      '<figure><pre><code>const answer = 42;</code></pre><figcaption>Example source</figcaption></figure>',
+      '<progress value="70" max="100">70%</progress>',
+      '<meter min="0" max="10" value="8" optimum="9">8/10</meter>'
+    ].join('')
+
+    const { container } = render(
+      <MessageContent role="assistant" renderMode="html" content={html} />
+    )
+
+    expect(container.querySelector('details')?.hasAttribute('open')).toBe(true)
+    expect(container.querySelector('summary')?.textContent).toBe('More information')
+    expect(container.querySelector('figcaption')?.textContent).toBe('Example source')
+    expect(container.querySelector('progress')?.getAttribute('value')).toBe('70')
+    expect(container.querySelector('meter')?.getAttribute('optimum')).toBe('9')
+  })
+
   it('renders safe inline SVG graphics in HTML mode', () => {
     const svgContent = [
       '<p>Here is an architecture diagram:</p>',
@@ -174,6 +198,40 @@ describe('MessageContent - HTML mode and Sanitization', () => {
     expect(container.querySelector('circle')?.getAttribute('fill')).toBe('green')
     expect(container.querySelector('rect')?.getAttribute('fill')).toBe('blue')
     expect(container.querySelector('text')?.textContent).toBe('Node')
+  })
+
+  it('renders multiple accessible SVG diagrams with gradients, clipping paths, masks, and markers', () => {
+    const svgContent = [
+      '<svg viewBox="0 0 120 60" role="img" aria-label="Flow diagram">',
+      '  <title>Flow</title><desc>Two connected nodes</desc>',
+      '  <defs>',
+      '    <linearGradient id="gradient"><stop offset="0" stop-color="#4f46e5"/><stop offset="1" stop-color="#06b6d4"/></linearGradient>',
+      '    <clipPath id="clip"><rect x="0" y="0" width="120" height="60" rx="6"/></clipPath>',
+      '    <mask id="fade"><rect x="0" y="0" width="120" height="60" fill="white"/></mask>',
+      '    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 Z" fill="currentColor"/></marker>',
+      '  </defs>',
+      '  <g clip-path="url(#clip)" mask="url(#fade)"><rect width="120" height="60" fill="url(#gradient)"/></g>',
+      '  <line x1="20" y1="30" x2="100" y2="30" stroke="currentColor" marker-end="url(#arrow)"/>',
+      '</svg>',
+      '<svg viewBox="0 0 20 20"><title>Status</title><circle cx="10" cy="10" r="8" fill="green"/></svg>'
+    ].join('')
+
+    const { container } = render(
+      <MessageContent role="assistant" renderMode="html" content={svgContent} />
+    )
+
+    expect(container.querySelectorAll('svg')).toHaveLength(2)
+    expect(container.querySelector('linearGradient')).toBeDefined()
+    expect(container.querySelector('clipPath')).toBeDefined()
+    expect(container.querySelector('mask')).toBeDefined()
+    expect(container.querySelector('marker')).toBeDefined()
+    expect(container.querySelector('title')?.textContent).toBe('Flow')
+    expect(container.querySelector('svg')?.getAttribute('viewBox')).toBe('0 0 120 60')
+    expect(container.querySelector('linearGradient')?.getAttribute('id')).toBe('gradient')
+    expect(container.querySelector('g')?.getAttribute('clip-path')).toBe('url(#clip)')
+    expect(container.querySelector('g')?.getAttribute('mask')).toBe('url(#fade)')
+    expect(container.querySelector('line')?.getAttribute('marker-end')).toBe('url(#arrow)')
+    expect(container.querySelector('.message-content-svg-fallback')).toBeNull()
   })
 
   it('strictly sanitizes dangerous, active, and resource-injecting SVG tags', () => {
@@ -279,16 +337,190 @@ describe('MessageContent - HTML mode and Sanitization', () => {
       <MessageContent role="assistant" renderMode="html" content={dangerous} />
     )
 
-    const div = container.querySelector('div.message-content > div')
-    expect(div?.getAttribute('onclick')).toBeNull()
-    expect(div?.getAttribute('onmouseover')).toBeNull()
-    expect(div?.getAttribute('style')).toBeNull()
+    const sanitized = sanitizeAssistantHtml(dangerous)
+    expect(sanitized).not.toContain('onclick=')
+    expect(sanitized).not.toContain('onmouseover=')
+    expect(sanitized).not.toContain('style=')
+    expect(sanitized).not.toContain('href=')
+    expect(container.querySelector('.message-content-html')).toBeNull()
+    expect(container.querySelector('.sandboxed-html-preview')).not.toBeNull()
+  })
 
-    const links = container.querySelectorAll('a')
-    for (const link of links) {
-      const href = link.getAttribute('href')
-      expect(href === null || href === '').toBe(true)
-    }
+  it('never executes embedded JavaScript or displays a broken static copy of an interactive document', () => {
+    const run = vi.fn()
+    Object.assign(window, { __unsafeHtmlTest: run })
+
+    const { container } = render(
+      <MessageContent
+        role="assistant"
+        renderMode="html"
+        content={'<p onclick="window.__unsafeHtmlTest()">Safe text</p><script>window.__unsafeHtmlTest()</script><interactive-chart data-source="remote">Static fallback</interactive-chart><pre><code>console.log(&quot;shown only&quot;)</code></pre>'}
+      />
+    )
+
+    expect(run).not.toHaveBeenCalled()
+    expect(container.querySelector('script')).toBeNull()
+    expect(container.querySelector('p[onclick]')).toBeNull()
+    expect(container.querySelector('interactive-chart')).toBeNull()
+    expect(container.querySelector('.message-content-html')).toBeNull()
+    expect(container.querySelector('.message-content-html-source code')?.textContent).toContain('Static fallback')
+    expect(container.querySelector('.message-content-html-source code')?.textContent).toContain('shown only')
+    expect(screen.getByRole('status').textContent).toContain('交互内容仅在隔离沙箱中显示')
+    expect(screen.getByRole('button', { name: '运行交互预览' })).toBeDefined()
+
+    Reflect.deleteProperty(window, '__unsafeHtmlTest')
+  })
+
+  it('renders explanation outside a fenced interactive HTML demo as Markdown', () => {
+    const { container } = render(
+      <MessageContent
+        role="assistant"
+        renderMode="html"
+        content={[
+          '## 计数器说明',
+          '',
+          '下面是**交互演示**：',
+          '',
+          '```html',
+          '<button id="counter">Count</button><script>document.querySelector("#counter").textContent = "Ready"</script>',
+          '```',
+          '',
+          '点击运行后查看效果。'
+        ].join('\n')}
+      />
+    )
+
+    expect(screen.getByRole('heading', { name: '计数器说明' })).toBeDefined()
+    expect(container.querySelector('strong')?.textContent).toBe('交互演示')
+    expect(container.querySelector('.message-content-html')).toBeNull()
+    expect(container.querySelector('.message-content-html-source code')?.textContent).toContain('<button id="counter">')
+    expect(container.querySelector('.message-content-html-source code')?.textContent).not.toContain('```html')
+    expect(screen.getByText('点击运行后查看效果。')).toBeDefined()
+    expect(screen.getByRole('button', { name: '运行交互预览' })).toBeDefined()
+  })
+
+  it('renders a fenced static HTML answer without leaking Markdown fence markers', () => {
+    const { container } = render(
+      <MessageContent role="assistant" renderMode="html" content={'```html\n<h2>标题</h2><p>内容</p>\n```'} />
+    )
+
+    expect(screen.getByRole('heading', { name: '标题' })).toBeDefined()
+    expect(container.textContent).not.toContain('```')
+    expect(container.querySelector('.sandboxed-html-preview')).toBeNull()
+  })
+
+  it('keeps plain Markdown readable when an HTML-declared model answer contains no HTML', () => {
+    const { container } = render(
+      <MessageContent role="assistant" renderMode="html" content={'## 说明\n\n- 第一步\n- 第二步'} />
+    )
+
+    expect(screen.getByRole('heading', { name: '说明' })).toBeDefined()
+    expect(container.querySelectorAll('li')).toHaveLength(2)
+  })
+
+  it('keeps a leading explanation outside an unfenced interactive HTML fragment', () => {
+    const { container } = render(
+      <MessageContent
+        role="assistant"
+        renderMode="html"
+        content={'这是一个**交互示例**：\n\n<button>Run</button><script>void 0</script>'}
+      />
+    )
+
+    expect(container.querySelector('strong')?.textContent).toBe('交互示例')
+    expect(container.querySelector('.message-content-html')).toBeNull()
+    expect(container.querySelector('.message-content-html-source code')?.textContent).toBe('<button>Run</button><script>void 0</script>')
+  })
+
+  it('keeps an unfinished HTML fence as escaped source while streaming', () => {
+    const { container, rerender } = render(
+      <MessageContent role="assistant" renderMode="html" content={'```html\n<button>Run'} />
+    )
+    expect(container.querySelector('button')).toBeNull()
+    expect(container.querySelector('pre code')?.textContent).toContain('<button>Run')
+
+    rerender(
+      <MessageContent role="assistant" renderMode="html" content={'```html\n<button>Run</button>\n```'} />
+    )
+    expect(container.querySelector('.message-content-html')).toBeNull()
+    expect(screen.getByRole('button', { name: '运行交互预览' })).toBeDefined()
+  })
+
+  it('builds a bounded no-network document for the interactive sandbox', () => {
+    const result = buildSandboxedHtmlDocument([
+      '<button id="counter">Count</button>',
+      '<iframe src="https://example.com"></iframe>',
+      '<script src="https://example.com/app.js">document.querySelector("#counter").textContent = "Ready"</script>'
+    ].join(''))
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.documentHtml).toContain("connect-src 'none'")
+    expect(result.documentHtml).toContain("worker-src 'none'")
+    expect(result.documentHtml).toContain('HTML preview sandbox')
+    expect(result.documentHtml).toContain('id="counter"')
+    expect(result.documentHtml).toContain('textContent = "Ready"')
+    expect(result.documentHtml).not.toContain('<iframe')
+    expect(result.documentHtml).not.toContain('https://example.com')
+  })
+
+  it('requires an explicit click before creating an opaque-origin script sandbox', async () => {
+    const createObjectUrl = vi.fn(() => 'blob:https://app.invalid/interactive-preview')
+    const revokeObjectUrl = vi.fn()
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      value: createObjectUrl
+    })
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      value: revokeObjectUrl
+    })
+
+    const user = userEvent.setup()
+    const { container, unmount } = render(
+      <MessageContent
+        role="assistant"
+        renderMode="html"
+        content='<button id="run">Run</button><script>document.querySelector("#run").textContent = "Ran"</script>'
+      />
+    )
+
+    expect(createObjectUrl).not.toHaveBeenCalled()
+    expect(container.querySelector('iframe')).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: '运行交互预览' }))
+    const iframe = container.querySelector('iframe')
+    expect(createObjectUrl).toHaveBeenCalledOnce()
+    expect(iframe?.getAttribute('sandbox')).toBe('allow-scripts')
+    expect(iframe?.getAttribute('src')).toBe('blob:https://app.invalid/interactive-preview')
+    expect(iframe?.getAttribute('allow')).not.toContain('same-origin')
+
+    await user.click(screen.getByRole('button', { name: '停止' }))
+    expect(container.querySelector('iframe')).toBeNull()
+    expect(revokeObjectUrl).toHaveBeenCalledWith('blob:https://app.invalid/interactive-preview')
+    unmount()
+  })
+
+  it('rejects oversized interactive documents and excessive script counts', () => {
+    expect(buildSandboxedHtmlDocument('x'.repeat(MAX_INTERACTIVE_HTML_LENGTH + 1)).ok).toBe(false)
+    const tooManyScripts = Array.from(
+      { length: MAX_INTERACTIVE_SCRIPT_COUNT + 1 },
+      (_, index) => `<script>window.value${index} = ${index}</script>`
+    ).join('')
+    expect(buildSandboxedHtmlDocument(tooManyScripts).ok).toBe(false)
+  })
+
+  it('rejects SVG presentation attributes that reference external resources', () => {
+    const { container } = render(
+      <MessageContent
+        role="assistant"
+        renderMode="html"
+        content='<svg viewBox="0 0 20 20"><rect width="20" height="20" fill="url(https://example.com/paint.svg#gradient)"/></svg>'
+      />
+    )
+
+    expect(container.querySelector('svg')).toBeNull()
+    expect(screen.getByRole('status').textContent).toContain('SVG 内容不符合安全或资源限制')
   })
 
   it('prevents link click navigation in HTML mode', () => {
