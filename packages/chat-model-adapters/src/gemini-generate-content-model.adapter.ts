@@ -1,5 +1,6 @@
 import type { ChatModelPort } from 'chat-core'
-import type { ChatRole } from 'chat-contracts'
+import type { ChatMessageInput } from 'chat-contracts'
+import { toGeminiParts, validateModelMessages } from './multimodal-mapping.js'
 import { DEFAULT_GEMINI_BASE_URL } from './provider-config.js'
 import { parseSseStream } from './sse.js'
 import { redactSecret } from './provider-config.schema.js'
@@ -26,7 +27,7 @@ export class GeminiGenerateContentModelAdapter implements ChatModelPort {
   }
 
   public async *streamChat(
-    input: { messages: ReadonlyArray<{ role: ChatRole; content: string }> },
+    input: { messages: ReadonlyArray<ChatMessageInput> },
     signal: AbortSignal
   ): AsyncIterable<
     | { type: 'text-delta'; text: string }
@@ -39,8 +40,9 @@ export class GeminiGenerateContentModelAdapter implements ChatModelPort {
     // Core 'system': temporarily merged into the first user message, noting limitation.
     // Core 'user': 'user'
     // Core 'assistant': 'model'
-    const systemMessages = input.messages.filter((m) => m.role === 'system')
-    const nonSystemMessages = input.messages.filter((m) => m.role !== 'system')
+    const messages = validateModelMessages(input.messages)
+    const systemMessages = messages.filter((m) => m.role === 'system')
+    const nonSystemMessages = messages.filter((m) => m.role !== 'system')
 
     let firstUserMerged = false
     const contents = nonSystemMessages.map((m) => {
@@ -49,13 +51,13 @@ export class GeminiGenerateContentModelAdapter implements ChatModelPort {
         const systemPrefix = systemMessages.map((s) => s.content).join('\n\n')
         return {
           role: 'user',
-          parts: [{ text: `${systemPrefix}\n\n${m.content}` }]
+          parts: toGeminiParts({ ...m, content: `${systemPrefix}\n\n${m.content}` })
         }
       }
 
       return {
         role: m.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: m.content }]
+        parts: toGeminiParts(m)
       }
     })
 

@@ -1,5 +1,6 @@
 import type { ChatModelPort } from 'chat-core'
-import type { ChatRole } from 'chat-contracts'
+import type { ChatMessageInput } from 'chat-contracts'
+import { toAnthropicMessage, validateModelMessages } from './multimodal-mapping.js'
 import {
   DEFAULT_ANTHROPIC_BASE_URL,
   DEFAULT_ANTHROPIC_VERSION,
@@ -33,7 +34,7 @@ export class AnthropicMessagesModelAdapter implements ChatModelPort {
   }
 
   public async *streamChat(
-    input: { messages: ReadonlyArray<{ role: ChatRole; content: string }> },
+    input: { messages: ReadonlyArray<ChatMessageInput> },
     signal: AbortSignal
   ): AsyncIterable<
     | { type: 'text-delta'; text: string }
@@ -41,13 +42,11 @@ export class AnthropicMessagesModelAdapter implements ChatModelPort {
   > {
     const url = `${this.baseUrl}/v1/messages`
 
-    const systemMessages = input.messages.filter((m) => m.role === 'system')
-    const nonSystemMessages = input.messages.filter((m) => m.role !== 'system')
+    const messages = validateModelMessages(input.messages)
+    const systemMessages = messages.filter((m) => m.role === 'system')
+    const nonSystemMessages = messages.filter((m) => m.role !== 'system')
 
-    const requestMessages = nonSystemMessages.map((m) => ({
-      role: m.role,
-      content: m.content
-    }))
+    const requestMessages = nonSystemMessages.map(toAnthropicMessage)
 
     const requestBody: Record<string, unknown> = {
       model: this.modelId,

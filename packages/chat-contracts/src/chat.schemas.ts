@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { ChatAttachmentSchema, MAX_ATTACHMENTS_PER_MESSAGE, MAX_TOTAL_ATTACHMENT_BYTES, base64ByteLength } from './multimodal.schemas.js'
 
 export const MAX_MESSAGES_COUNT = 100
 export const MAX_SINGLE_MESSAGE_LENGTH = 32000
@@ -9,9 +10,18 @@ export const ChatRoleSchema = z.enum(['system', 'user', 'assistant'])
 export const ChatMessageInputSchema = z
   .object({
     role: ChatRoleSchema,
-    content: z.string().min(1, 'Message content cannot be empty').max(MAX_SINGLE_MESSAGE_LENGTH, 'Message content exceeds maximum length')
+    content: z.string().max(MAX_SINGLE_MESSAGE_LENGTH, 'Message content exceeds maximum length'),
+    attachments: z.array(ChatAttachmentSchema).min(1).max(MAX_ATTACHMENTS_PER_MESSAGE).optional()
   })
   .strict()
+  .superRefine((message, ctx) => {
+    if (!message.content.trim() && !message.attachments?.length) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['content'], message: 'Message content cannot be empty without attachments' })
+    }
+    if (message.role !== 'user' && message.attachments?.length) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['attachments'], message: 'Attachments are supported only on user messages' })
+    }
+  })
 
 export const StartChatCommandSchema = z
   .object({
@@ -26,6 +36,7 @@ export const StartChatCommandSchema = z
   .strict()
   .superRefine((data, ctx) => {
     const lastMessage = data.messages[data.messages.length - 1]
+    if (!lastMessage) return
     if (lastMessage.role !== 'user') {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -33,7 +44,7 @@ export const StartChatCommandSchema = z
         message: 'The last message in context must be a user message'
       })
     }
-    if (lastMessage.content.trim().length === 0) {
+    if (lastMessage.content.trim().length === 0 && !lastMessage.attachments?.length) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['messages', data.messages.length - 1, 'content'],
@@ -42,8 +53,15 @@ export const StartChatCommandSchema = z
     }
 
     let totalLength = 0
+    let totalAttachmentBytes = 0
     for (let i = 0; i < data.messages.length; i++) {
       totalLength += data.messages[i].content.length
+      for (const attachment of data.messages[i].attachments ?? []) {
+        if (attachment.source.type === 'base64') totalAttachmentBytes += base64ByteLength(attachment.source.data)
+      }
+    }
+    if (totalAttachmentBytes > MAX_TOTAL_ATTACHMENT_BYTES) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['messages'], message: 'Total attachment bytes exceed limit' })
     }
     if (totalLength > MAX_TOTAL_MESSAGES_LENGTH) {
       ctx.addIssue({

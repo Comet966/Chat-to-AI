@@ -2,6 +2,8 @@ import type { ConversationId, MessageId } from './domain/message.js'
 
 export type ChatErrorCode =
   | 'INVALID_REQUEST'
+  | 'UNSUPPORTED_CAPABILITY'
+  | 'INVALID_RESPONSE'
   | 'REQUEST_IN_PROGRESS'
   | 'PROVIDER_UNAUTHORIZED'
   | 'PROVIDER_RATE_LIMITED'

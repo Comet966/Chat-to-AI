@@ -1,5 +1,6 @@
 import type { ChatModelPort } from 'chat-core'
-import type { ChatRole } from 'chat-contracts'
+import type { ChatMessageInput } from 'chat-contracts'
+import { toOpenAIMessage, validateModelMessages } from './multimodal-mapping.js'
 import { parseSseStream } from './sse.js'
 import { redactSecret } from './provider-config.schema.js'
 
@@ -22,13 +23,14 @@ export class OpenAICompatibleModelAdapter implements ChatModelPort {
   }
 
   public async *streamChat(
-    input: { messages: ReadonlyArray<{ role: ChatRole; content: string }> },
+    input: { messages: ReadonlyArray<ChatMessageInput> },
     signal: AbortSignal
   ): AsyncIterable<
     | { type: 'text-delta'; text: string }
     | { type: 'finish'; finishReason: 'stop' | 'length' | 'unknown' }
   > {
     const url = `${this.baseUrl}/chat/completions`
+    const messages = validateModelMessages(input.messages).map(toOpenAIMessage)
 
     let response: Response
     try {
@@ -40,7 +42,7 @@ export class OpenAICompatibleModelAdapter implements ChatModelPort {
         },
         body: JSON.stringify({
           model: this.modelId,
-          messages: input.messages,
+          messages,
           stream: true
         }),
         signal
