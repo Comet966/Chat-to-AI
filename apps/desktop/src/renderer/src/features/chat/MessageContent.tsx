@@ -440,7 +440,10 @@ function splitHtmlMessage(content: string): HtmlMessageSegment[] {
   if (segments.length === 0) {
     // During streaming, an unclosed HTML fence is source text, not a partial
     // HTML document to sanitize or execute.
-    if (/(^|\n)```(?:html|htm)\b/i.test(content)) {
+    // Other fenced source (e.g. Mermaid with <br/> labels, TS generics, or
+    // HTML examples) is Markdown too. Parsing it as HTML consumes source tags
+    // and collapses headings/newlines, making the answer look corrupted.
+    if (/(^|\n)[ \t]{0,3}(?:`{3,}|~{3,})/.test(content)) {
       return [{ kind: 'markdown', content }]
     }
     // An HTML-declared answer can still contain plain explanatory Markdown.

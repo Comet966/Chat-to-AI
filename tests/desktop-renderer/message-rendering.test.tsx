@@ -418,6 +418,33 @@ describe('MessageContent - HTML mode and Sanitization', () => {
     expect(container.querySelectorAll('li')).toHaveLength(2)
   })
 
+  it('preserves Markdown and Mermaid source with HTML labels in an HTML-declared answer', () => {
+    const source = 'flowchart TB\nA["用户<br/>输入"] --> B["模型"]\nB <--> C["记忆"]'
+    const { container } = render(
+      <MessageContent
+        role="assistant"
+        renderMode="html"
+        declaredOutputFormat="html"
+        content={`## 架构图\n\n下面是**流程**：\n\n\`\`\`mermaid\n${source}\n\`\`\`\n\n- 保留全部节点`}
+      />
+    )
+    expect(screen.getByRole('heading', { name: '架构图' })).toBeDefined()
+    expect(container.querySelector('strong')?.textContent).toBe('流程')
+    expect(container.querySelector('pre code')?.textContent.trim()).toBe(source)
+    expect(container.querySelector('li')?.textContent).toBe('保留全部节点')
+    expect(container.querySelector('.message-content-html')).toBeNull()
+  })
+
+  it('displays fenced HTML source examples without creating an executable preview', () => {
+    const source = 'const example = "<script>attack()</script>";'
+    const { container } = render(
+      <MessageContent role="assistant" renderMode="html" content={`~~~javascript\n${source}\n~~~`} />
+    )
+    expect(container.querySelector('pre code')?.textContent.trim()).toBe(source)
+    expect(container.querySelector('script')).toBeNull()
+    expect(container.querySelector('.sandboxed-html-preview')).toBeNull()
+  })
+
   it('keeps a leading explanation outside an unfenced interactive HTML fragment', () => {
     const { container } = render(
       <MessageContent
