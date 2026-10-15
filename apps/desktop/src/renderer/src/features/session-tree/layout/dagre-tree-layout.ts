@@ -1,5 +1,5 @@
 import dagre from '@dagrejs/dagre'
-import type { Edge, Node } from '@xyflow/react'
+import { Position, type Edge, type Node } from '@xyflow/react'
 
 export interface LayoutOptions {
   nodeWidth?: number
@@ -70,6 +70,25 @@ export function dagreTreeLayout<T extends Record<string, unknown>>(
 
     return {
       ...node,
+      // Controlled snapshots recreate node objects. Width/height alone keep
+      // nodes visible, but ReactFlow drops their measured handle bounds unless
+      // measurement is retained. Fixed circles also declare their anchors so
+      // new nodes do not depend on a ResizeObserver callback to render edges.
+      width: opts.nodeWidth,
+      height: opts.nodeHeight,
+      ...(node.type === 'conversationNode' ? {
+        measured: { width: opts.nodeWidth, height: opts.nodeHeight },
+        handles: [
+          {
+            type: 'target' as const, position: Position.Top,
+            x: (opts.nodeWidth - 6) / 2, y: -3, width: 6, height: 6
+          },
+          {
+            type: 'source' as const, position: Position.Bottom,
+            x: (opts.nodeWidth - 6) / 2, y: opts.nodeHeight - 3, width: 6, height: 6
+          }
+        ]
+      } : {}),
       position: {
         x: nodeWithPosition.x - opts.nodeWidth / 2,
         y: nodeWithPosition.y - opts.nodeHeight / 2

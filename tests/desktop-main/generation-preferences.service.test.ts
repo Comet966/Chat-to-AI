@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { GenerationPreferencesService } from '../../apps/desktop/src/main/preferences/generation-preferences.service.js'
-import { DEFAULT_GENERATION_PREFERENCES } from '../../apps/desktop/src/shared/preferences.contract.js'
+import {
+  DEFAULT_GENERATION_PREFERENCES,
+  DEFAULT_HTML_TEMPLATE
+} from '../../apps/desktop/src/shared/preferences.contract.js'
 
 describe('GenerationPreferencesService', () => {
   it('returns default preferences initialized with version 1 and markdown format', () => {
@@ -14,6 +17,15 @@ describe('GenerationPreferencesService', () => {
     expect(result.value.version).toBe(1)
     expect(result.value.markdownTemplate).toBe(DEFAULT_GENERATION_PREFERENCES.markdownTemplate)
     expect(result.value.htmlTemplate).toBe(DEFAULT_GENERATION_PREFERENCES.htmlTemplate)
+  })
+
+  it('describes the safe static HTML, component, SVG, and JavaScript policy', () => {
+    expect(DEFAULT_HTML_TEMPLATE).toContain('details/summary')
+    expect(DEFAULT_HTML_TEMPLATE).toContain('inline <svg>')
+    expect(DEFAULT_HTML_TEMPLATE).toContain('explicitly requests behavior that requires JavaScript')
+    expect(DEFAULT_HTML_TEMPLATE).toContain('opaque-origin sandbox')
+    expect(DEFAULT_HTML_TEMPLATE).toContain('HTML-escape it inside <pre><code>')
+    expect(DEFAULT_HTML_TEMPLATE).toContain('do not use image, use, foreignObject')
   })
 
   it('saves valid generation preferences and increments version', () => {

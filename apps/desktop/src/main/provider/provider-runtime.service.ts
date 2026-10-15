@@ -15,6 +15,7 @@ import type {
   DesktopProviderSettingsInput
 } from '../../shared/provider.contract.js'
 import type { MutableConversationModelProvider } from '../conversation/desktop-conversation.service.js'
+import { loadLocalDevProviderConfig } from '../app-config.js'
 
 export interface ProviderRuntimeServiceOptions {
   modelProvider: MutableConversationModelProvider
@@ -36,7 +37,7 @@ export class ProviderRuntimeService {
     this.fetchImpl = options.fetchImpl ?? fetch
     this.enableDevPreset =
       !options.isPackaged &&
-      (options.enableDevPreset ?? process.env.DESKTOP_ENABLE_LOCAL_PROVIDER_PRESET === '1')
+      (options.enableDevPreset ?? process.env.DESKTOP_ENABLE_LOCAL_PROVIDER_PRESET !== '0')
     if (this.config) this.installModel(this.config)
   }
 
@@ -66,6 +67,11 @@ export class ProviderRuntimeService {
             catalogMode: 'provider-native'
           }
     }
+  }
+
+  /** Main-only credentials snapshot. Never exposed by the provider IPC bridge. */
+  public getRuntimeConfig(): ProviderConfig | null {
+    return this.config ? { ...this.config } : null
   }
 
   public saveSettings(input: DesktopProviderSettingsInput): DesktopProviderResult<void> {
@@ -174,18 +180,21 @@ export class ProviderRuntimeService {
       return { ok: true, value: null }
     }
 
-    const envKey = process.env.LOCAL_ANTHROPIC_API_KEY || process.env.AI_API_KEY || ''
+    const config = loadLocalDevProviderConfig({
+      ...process.env,
+      DESKTOP_ENABLE_LOCAL_PROVIDER_PRESET: '1'
+    })?.providerConfig
+    if (!config) return { ok: true, value: null }
+
     return {
       ok: true,
       value: {
-        provider: 'anthropic',
-        baseUrl: process.env.LOCAL_ANTHROPIC_BASE_URL || 'http://127.0.0.1:8317',
-        catalogMode: 'openai-compatible',
-        catalogBaseUrl: process.env.LOCAL_ANTHROPIC_CATALOG_URL || 'http://127.0.0.1:8317/v1',
-        modelId: process.env.LOCAL_ANTHROPIC_MODEL_ID || 'claude-3-5-sonnet-20241022',
-        maxOutputTokens: 2048,
-        anthropicVersion: '2023-06-01',
-        hasApiKey: Boolean(envKey)
+        provider: config.provider,
+        baseUrl: config.baseUrl,
+        catalogMode: config.catalogMode ?? 'provider-native',
+        modelId: config.modelId,
+        maxOutputTokens: config.maxOutputTokens,
+        hasApiKey: true
       }
     }
   }
@@ -193,11 +202,23 @@ export class ProviderRuntimeService {
   private resolveConfig(
     input: DesktopProviderSettingsInput
   ): DesktopProviderResult<ProviderConfig> {
-    const envKey = this.enableDevPreset
-      ? process.env.LOCAL_ANTHROPIC_API_KEY || process.env.AI_API_KEY || ''
+    const endpoint = validateSanitizedUrl(input.baseUrl)
+    if (!endpoint.success) return this.failure('VALIDATION_FAILED', endpoint.error, 'baseUrl')
+    const localPreset = this.enableDevPreset
+      ? loadLocalDevProviderConfig({ ...process.env, DESKTOP_ENABLE_LOCAL_PROVIDER_PRESET: '1' })?.providerConfig
+      : null
+    const presetKey = localPreset &&
+      input.provider === localPreset.provider &&
+      endpoint.url === localPreset.baseUrl
+      ? localPreset.apiKey
       : ''
-    const apiKey = input.apiKey.trim() || this.config?.apiKey || envKey
-    const validated = validateProviderConfig({ ...input, apiKey })
+    const currentKey = this.config &&
+      input.provider === this.config.provider &&
+      endpoint.url === this.config.baseUrl
+      ? this.config.apiKey
+      : ''
+    const apiKey = input.apiKey.trim() || currentKey || presetKey
+    const validated = validateProviderConfig({ ...input, baseUrl: endpoint.url, apiKey })
     if (!validated.success) {
       return this.failure('VALIDATION_FAILED', validated.error, validated.field)
     }

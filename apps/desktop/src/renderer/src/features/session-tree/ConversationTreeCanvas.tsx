@@ -3,6 +3,7 @@ import {
   Background,
   ReactFlow,
   ReactFlowProvider,
+  useNodesInitialized,
   useReactFlow,
   type Edge,
   type Node,
@@ -38,6 +39,8 @@ const edgeTypes = {
   conversationBezier: ConversationTreeEdge
 }
 
+const TREE_FIT_OPTIONS = { padding: 0.25, minZoom: 0.02, maxZoom: 1 }
+
 export const ConversationTreeCanvas = React.forwardRef<
   ConversationTreeCanvasHandle,
   ConversationTreeCanvasProps
@@ -69,12 +72,19 @@ const InnerCanvas = React.forwardRef<ConversationTreeCanvasHandle, InnerCanvasPr
     { nodes, edges, currentNodeId, onNodeClick, onPaneClick, onSelectionChange },
     ref
   ) {
-    const { fitView, setCenter, getNode } = useReactFlow()
+    const { fitView, setCenter, getNode, viewportInitialized } = useReactFlow()
+    const nodesInitialized = useNodesInitialized()
     const [hoveredNodeId, setHoveredNodeId] = React.useState<string | null>(null)
-    const hasInitializedFitView = useRef(false)
+    const lastFittedLayout = useRef<string | null>(null)
+    // Selection, hover, and context highlights must not reset a user's view.
+    // Topology/layout changes, however, can move existing nodes off screen.
+    const layoutKey = JSON.stringify({
+      nodes: nodes.map(({ id, position }) => [id, position.x, position.y]),
+      edges: edges.map(({ source, target }) => [source, target])
+    })
 
     const handleFitView = useCallback(() => {
-      fitView({ padding: 0.2, duration: 300 })
+      void fitView({ ...TREE_FIT_OPTIONS, duration: 300 })
     }, [fitView])
 
     const handleFocusNode = useCallback(
@@ -99,18 +109,27 @@ const InnerCanvas = React.forwardRef<ConversationTreeCanvasHandle, InnerCanvasPr
       [handleFitView, handleFocusNode]
     )
 
-    // Fit view on first valid layout
+    // Fit every new layout after ReactFlow has measured the nodes. A fixed
+    // timeout can be cancelled by a fast update (or StrictMode), leaving a
+    // stale viewport that looks as though the previous turn was deleted.
     useEffect(() => {
-      if (nodes.length > 0 && !hasInitializedFitView.current) {
-        hasInitializedFitView.current = true
-        // Delay slightly for ReactFlow measurement
-        const timer = setTimeout(() => {
-          fitView({ padding: 0.25 })
-        }, 50)
-        return () => clearTimeout(timer)
+      if (nodes.length === 0) {
+        lastFittedLayout.current = null
+        return
       }
-      return undefined
-    }, [nodes.length, fitView])
+      if (!nodesInitialized || !viewportInitialized || lastFittedLayout.current === layoutKey) return
+
+      let cancelled = false
+      const frame = requestAnimationFrame(() => {
+        void fitView(TREE_FIT_OPTIONS).then((fitted) => {
+          if (fitted && !cancelled) lastFittedLayout.current = layoutKey
+        })
+      })
+      return () => {
+        cancelled = true
+        cancelAnimationFrame(frame)
+      }
+    }, [layoutKey, nodes.length, nodesInitialized, viewportInitialized, fitView])
 
     const handleNodeClick = useCallback(
       (event: React.MouseEvent, node: Node) => {
@@ -164,7 +183,7 @@ const InnerCanvas = React.forwardRef<ConversationTreeCanvasHandle, InnerCanvasPr
           panOnDrag={true}
           deleteKeyCode={null}
           proOptions={proOptions}
-          minZoom={0.2}
+          minZoom={TREE_FIT_OPTIONS.minZoom}
           maxZoom={2}
         >
           <Background color="var(--color-border)" gap={20} size={1} />

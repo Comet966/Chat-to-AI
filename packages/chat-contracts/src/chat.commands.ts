@@ -1,14 +1,12 @@
-import type { ChatRole, ConversationId, MessageId } from './domain/message.js'
+import type { ConversationId, MessageId } from './domain/message.js'
+import type { ChatMessageInput } from './chat.schemas.js'
 import type { ChatPublicError } from './chat.events.js'
 
 export interface StartChatCommand {
   requestId: string
   conversationId: ConversationId
   assistantMessageId: MessageId
-  messages: ReadonlyArray<{
-    role: ChatRole
-    content: string
-  }>
+  messages: ReadonlyArray<ChatMessageInput>
 }
 
 export type StartChatResult =

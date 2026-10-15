@@ -44,27 +44,21 @@ export function loadAppConfig(overrides?: RawProviderConfigInput): AppConfig {
   }
 }
 
-/**
- * Resolve the opt-in local test provider used by the desktop GUI.  The key is
- * read only from the process environment; an empty key deliberately means
- * that no initial runtime is installed and the user must configure a provider.
- */
+/** Development-only loopback fallback. ElectronHost never loads it when packaged. */
 export function loadLocalDevProviderConfig(
   env: NodeJS.ProcessEnv = process.env
 ): AppConfig | null {
-  if (env.DESKTOP_ENABLE_LOCAL_PROVIDER_PRESET !== '1') return null
+  if (env.DESKTOP_ENABLE_LOCAL_PROVIDER_PRESET === '0') return null
 
-  const apiKey = env.LOCAL_ANTHROPIC_API_KEY?.trim() || env.AI_API_KEY?.trim()
-  if (!apiKey) return null
+  const apiKey = env.LOCAL_OPENAI_API_KEY?.trim() || '1145141919810'
 
   const result = resolveProviderConfig(
     {
-      provider: 'anthropic',
-      baseUrl: env.LOCAL_ANTHROPIC_BASE_URL || 'http://127.0.0.1:8317',
+      provider: 'openai-compatible',
+      baseUrl: env.LOCAL_OPENAI_BASE_URL || 'http://127.0.0.1:8317/v1',
       apiKey,
-      modelId: env.LOCAL_ANTHROPIC_MODEL_ID || 'claude-3-5-sonnet-20241022',
-      maxOutputTokens: env.LOCAL_ANTHROPIC_MAX_OUTPUT_TOKENS || '2048',
-      anthropicVersion: env.LOCAL_ANTHROPIC_VERSION || '2023-06-01'
+      modelId: env.LOCAL_OPENAI_MODEL_ID || 'gpt-4o',
+      maxOutputTokens: env.LOCAL_OPENAI_MAX_OUTPUT_TOKENS || '2048'
     },
     env
   )
@@ -73,8 +67,7 @@ export function loadLocalDevProviderConfig(
   return {
     providerConfig: {
       ...result.config,
-      catalogMode: 'openai-compatible',
-      catalogBaseUrl: env.LOCAL_ANTHROPIC_CATALOG_URL || 'http://127.0.0.1:8317/v1'
+      catalogMode: 'provider-native'
     },
     aiApiBaseUrl: result.config.baseUrl,
     aiApiKey: result.config.apiKey,

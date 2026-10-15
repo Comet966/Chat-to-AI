@@ -141,8 +141,10 @@ describe('ProviderRuntimeService - Catalog Decoupling & Dev Preset', () => {
     expect(enabledPreset.ok).toBe(true)
     if (!enabledPreset.ok) return
     expect(enabledPreset.value).not.toBeNull()
-    expect(enabledPreset.value?.provider).toBe('anthropic')
-    expect(enabledPreset.value?.catalogMode).toBe('openai-compatible')
+    expect(enabledPreset.value?.provider).toBe('openai-compatible')
+    expect(enabledPreset.value?.baseUrl).toBe('http://127.0.0.1:8317/v1')
+    expect(enabledPreset.value?.catalogMode).toBe('provider-native')
+    expect(enabledPreset.value?.hasApiKey).toBe(true)
 
     const disabledService = new ProviderRuntimeService({
       modelProvider: new MutableConversationModelProvider(),

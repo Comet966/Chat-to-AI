@@ -11,6 +11,19 @@ const baseInput = {
 }
 
 describe('ProviderRuntimeService', () => {
+  it.each(['https://api.openai.com/v1', ' https://API.OPENAI.COM:443/v1/ '])('preserves the saved key when editing a read-back configuration at %s', async (baseUrl) => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: [{ id: 'updated-model' }] }), { status: 200 }))
+    const service = new ProviderRuntimeService({ modelProvider: new MutableConversationModelProvider(), hasActiveTurn: () => false, fetchImpl, enableDevPreset: false })
+    expect(service.saveSettings(baseInput).ok).toBe(true)
+    const settings = service.getSettings()
+    if (!settings.ok) throw new Error('Missing settings')
+    expect(settings.value).toMatchObject({ apiKey: '', hasApiKey: true })
+    expect(service.saveSettings({ ...settings.value, baseUrl, modelId: 'updated-model' }).ok).toBe(true)
+    expect(service.getRuntimeConfig()).toMatchObject({ apiKey: baseInput.apiKey, modelId: 'updated-model', baseUrl: baseInput.baseUrl })
+    expect((await service.listModels({ ...settings.value, baseUrl })).ok).toBe(true)
+    expect(fetchImpl).toHaveBeenCalledWith('https://api.openai.com/v1/models', expect.objectContaining({ headers: { authorization: `Bearer ${baseInput.apiKey}` } }))
+  })
+
   it('keeps API keys write-only while installing a usable model executor', () => {
     const modelProvider = new MutableConversationModelProvider()
     const service = new ProviderRuntimeService({
@@ -27,6 +40,25 @@ describe('ProviderRuntimeService', () => {
     expect(JSON.stringify(settings)).not.toContain(baseInput.apiKey)
     expect(modelProvider.getCurrentModel()).toMatchObject({
       providerId: 'openai-compatible', modelId: 'gpt-test'
+    })
+  })
+
+  it('does not carry the configured key to a different endpoint without explicit input', () => {
+    const service = new ProviderRuntimeService({
+      modelProvider: new MutableConversationModelProvider(),
+      hasActiveTurn: () => false,
+      fetchImpl: vi.fn()
+    })
+    expect(service.saveSettings(baseInput).ok).toBe(true)
+
+    const changedEndpoint = service.saveSettings({
+      ...baseInput,
+      baseUrl: 'https://another.example.test/v1',
+      apiKey: ''
+    })
+    expect(changedEndpoint).toMatchObject({
+      ok: false,
+      error: { code: 'VALIDATION_FAILED', field: 'apiKey' }
     })
   })
 

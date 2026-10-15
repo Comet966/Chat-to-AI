@@ -108,7 +108,7 @@ describe('ProviderSettingsPage and Form', () => {
 
   it('should reject an empty API key', async () => {
     const user = userEvent.setup()
-    renderWithPorts()
+    renderWithPorts(new InMemoryProviderSettingsAdapter())
 
     const apiKeyInput = await screen.findByLabelText('API Key')
     await user.clear(apiKeyInput)
@@ -140,7 +140,8 @@ describe('ProviderSettingsPage and Form', () => {
     const { ports } = renderWithPorts()
 
     const apiKeyInput = (await screen.findByLabelText('API Key')) as HTMLInputElement
-    expect(apiKeyInput.value).toBe(secretKey)
+    expect(apiKeyInput.value).toBe('')
+    expect(apiKeyInput.placeholder).toContain('已配置')
 
     const clearBtn = screen.getByRole('button', { name: 'Clear API key' })
     await user.click(clearBtn)
@@ -148,6 +149,7 @@ describe('ProviderSettingsPage and Form', () => {
     expect(apiKeyInput.value).toBe('')
     const settings = (await ports.providerSettings.getSettings()).value!
     expect(settings.apiKey).toBe('')
+    expect(settings.hasApiKey).toBe(false)
   })
 
   it('should save settings to in-memory adapter and display preview notice', async () => {

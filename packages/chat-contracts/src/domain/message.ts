@@ -9,7 +9,9 @@ export interface MessageNode {
   parentId: MessageId | null
   role: ChatRole
   content: string
+  attachments?: ChatAttachment[]
   status: MessageStatus
   createdAt: string
   modelId?: string
 }
+import type { ChatAttachment } from '../multimodal.schemas.js'

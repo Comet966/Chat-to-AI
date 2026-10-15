@@ -17,6 +17,7 @@ import type { AppPorts } from './ports/ports.context.js'
 import { PortsProvider } from './ports/ports.context.js'
 import { AppRoutes } from './routes.js'
 import { REALISTIC_CONVERSATION_TREE_FIXTURE } from './adapters/fixtures/realistic-conversation-tree.fixture.js'
+import { ElectronImageGenerationAdapter, UnavailableImageGenerationAdapter } from './adapters/electron-image-generation.adapter.js'
 
 export interface AppProps {
   customPorts?: Partial<AppPorts>
@@ -43,6 +44,9 @@ export function App({ customPorts }: AppProps) {
     }
     if (!customPorts && window.desktopApi) {
       return {
+        imageGeneration: window.desktopApi.imageGeneration
+          ? new ElectronImageGenerationAdapter(window.desktopApi.imageGeneration)
+          : new UnavailableImageGenerationAdapter(),
         providerSettings: new ElectronProviderSettingsAdapter(window.desktopApi.provider),
         preferences: new ElectronGenerationPreferencesAdapter(window.desktopApi.preferences),
         chatUi: new ElectronChatUiAdapter(window.desktopApi.conversation),
@@ -60,6 +64,7 @@ export function App({ customPorts }: AppProps) {
       }
     }
     return {
+      imageGeneration: customPorts.imageGeneration ?? new UnavailableImageGenerationAdapter(),
       providerSettings: customPorts?.providerSettings ?? new InMemoryProviderSettingsAdapter(),
       preferences: customPorts?.preferences ?? new InMemoryGenerationPreferencesAdapter(),
       chatUi: customPorts?.chatUi ?? new DemoChatUiAdapter(),

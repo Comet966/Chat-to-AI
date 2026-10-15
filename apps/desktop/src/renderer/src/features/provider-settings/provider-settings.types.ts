@@ -10,6 +10,7 @@ export type FormStatus =
 
 export interface ProviderSettingsFormState {
   data: ProviderSettingsData
+  keyScope: { provider: ProviderKind; baseUrl: string } | null
   status: FormStatus
   errors: Partial<Record<keyof ProviderSettingsData, string>>
   noticeMessage: string | null
@@ -24,5 +25,6 @@ export type ProviderSettingsAction =
   | { type: 'clearApiKey' }
   | { type: 'validationFailed'; errors: Partial<Record<keyof ProviderSettingsData, string>> }
   | { type: 'saveSuccess'; message: string }
+  | { type: 'configurationSaved'; data: ProviderSettingsData }
   | { type: 'testConnectionResult'; message: string }
   | { type: 'resetForm'; data: ProviderSettingsData }

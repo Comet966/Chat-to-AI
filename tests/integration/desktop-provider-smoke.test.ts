@@ -114,6 +114,14 @@ describe('Desktop Provider Real HTTP Smoke Test', () => {
     if (!catalog.ok) return
     expect(catalog.value.models).toEqual(['gpt-4o', 'gpt-4o-mini', 'o3-mini'])
 
+    // Reopening the settings page returns no plaintext key. Saving that form
+    // with a model change must preserve the actual credential for HTTP/SSE.
+    const reopenedSettings = providerService.getSettings()
+    if (!reopenedSettings.ok) throw new Error('Failed to reopen provider settings')
+    expect(reopenedSettings.value).toMatchObject({ apiKey: '', hasApiKey: true })
+    expect(providerService.saveSettings({ ...reopenedSettings.value, modelId: 'gpt-4o-mini' }).ok).toBe(true)
+    expect((await providerService.listModels({ ...reopenedSettings.value, modelId: 'gpt-4o-mini' })).ok).toBe(true)
+
     // 2. Set up DesktopConversationService with real ChatKernel installed by providerService
     const conversationService = new DesktopConversationService(
       'smoke-tree',
@@ -180,7 +188,7 @@ describe('Desktop Provider Real HTTP Smoke Test', () => {
     )
     expect(treeSnapshot.value.turns[0].providerInfo).toEqual({
       provider: 'openai-compatible',
-      modelId: 'gpt-4o'
+      modelId: 'gpt-4o-mini'
     })
 
     chatAdapter.dispose()

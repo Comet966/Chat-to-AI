@@ -7,7 +7,11 @@ import { ElectronHost } from './electron-host.js'
 const host = new ElectronHost()
 let isQuitting = false
 
-app.whenReady().then(async () => {
+// Persistent conversation files have one writer. Never allow a second desktop instance.
+const ownsInstance = app.requestSingleInstanceLock()
+if (!ownsInstance) app.quit()
+
+if (ownsInstance) app.whenReady().then(async () => {
   try {
     const mainDir = dirname(fileURLToPath(import.meta.url))
     const preloadPath = join(mainDir, '../preload/index.js')

@@ -13,6 +13,7 @@
 - 通过独立的 `conversation-tree` 管理严格无环的会话树，支持节点追加、分支、删除、路径和叶节点查询。
 - 通过独立的 `conversation-runtime` 将选定节点上下文与模型请求连接起来，并在请求完成后持久化 assistant 子节点。
 - 当前 CLI 交互界面只用于调试；内核不依赖 Electron、React、readline 或具体模型适配器。
+- 内核支持多模态消息附件与独立图片生成能力，详见 [多模态与生图说明](./docs/CORE_MULTIMODAL_AND_IMAGE_GENERATION.md)。
 
 ## 🎯 项目目标
 
@@ -66,7 +67,9 @@ pnpm test
 
 桌面端位于 `apps/desktop`，基于 Electron + React 19 + React Router (`HashRouter`) 构建，采用分层 Port / Adapter 架构，具备以下能力：
 
+- **独立图片生成模块**：左侧生图图标进入提示词、独立模型与端点配置页面，复用主进程供应商凭据；支持生成、取消、内联图片预览和原生文件保存，不修改聊天模型或会话树。外链图片只展示可复制地址；具体测试步骤见 [GUI 生图测试说明](./docs/GUI_IMAGE_GENERATION.md)。
 - **输入体验优化**：
+  - **多模态附件与本地恢复**：支持选择、拖拽或粘贴图片，选择 PDF 与 WAV/MP3 音频；发送后将附件保存到主进程管理的独立文件存储，按内容哈希去重。会话树仍只含文本和附件名，后续请求按所选节点路径或手动上下文重新加载相关附件；重启后恢复会话树、附件关联与当前节点。文件缺失、损坏或上下文总大小超限时明确报错。模型需支持对应输入类型，详见 [GUI 多模态输入测试](./docs/GUI_MULTIMODAL_INPUT.md)。
   - **流式草稿编辑**：当 Assistant 正在流式输出时，输入框不再被禁用，用户可实时编辑下一条问题草稿；提供非阻塞提示，流式期间回车不会误发第二条请求，Stop 按钮保持可用；当前请求结束（完成、取消或失败）后草稿完整保留并可立即发送；
   - **中文输入法 (IME) 防误触**：严格监听 `compositionstart` / `compositionend` 与 `keyCode === 229`，中文/日文/韩文输入法选词按 Enter 确认候选词时绝不误发送消息；`Shift+Enter` 正常换行。
 - **输出约束与格式系统提示词 (Generation Preferences)**：
@@ -75,12 +78,15 @@ pnpm test
   - 切换渲染模式自动同步下一轮生成的输出约束偏好，历史消息记录对应的只读 `declaredOutputFormat` 格式元数据。
 - **富文本与双渲染增强**：
   - **LaTeX 数学公式**：Markdown 模式支持 KaTeX 解析行内公式 (`$...$`) 与块级公式 (`$$...$$`)，公式溢出横向平滑滚动，语法异常时优雅降级而不崩溃；
-  - **安全内联 SVG**：HTML 模式支持安全的内联 `<svg>` 图形渲染（包括 `path`, `rect`, `circle`, `line`, `polygon`, `text`, `linearGradient` 等）；
-  - **强安全防护**：继续执行集中严格净化，坚决移除 `script`, `style`, `foreignObject`, `use`, `animate`, `iframe`, `form` 以及所有外链、图片、媒体资源与内联事件；阻止所有外链在 WebView 中直接跳转；
+  - **安全 HTML 组件**：HTML 模式支持标题、列表、表格、代码块、`figure/figcaption`、`details/summary`、`progress` 与 `meter` 等静态语义组件；
+  - **安全内联 SVG**：支持同一回复中的多个静态 `<svg>`，以及 `path`, `rect`, `circle`, `text`, `linearGradient`, `clipPath`, `mask`, `marker` 等常用图形能力；
+  - **隔离交互预览**：模型生成的 JavaScript 永不进入主对话 DOM；包含交互逻辑时可展开查看源码，并由用户手动启动无同源权限、无网络、无 Electron/Node 能力的 sandbox iframe，可随时停止；
+  - **强安全防护**：主渲染层集中移除 `script`, `style`, `foreignObject`, `use`, `animate`, `iframe`, `form`、自定义可执行组件、外部资源与内联事件；隔离预览继续禁止网络、导航、弹窗、存储、Worker、外部媒体与设备权限；
   - 用户输入严格保持纯文本安全显示。
 - **供应商目录协议解耦与本地预设**：
+  - **API Key 状态**：保存后及切回配置页面显示「已配置，留空保留」掩码提示；修改模型、获取模型列表可沿用主进程保存的 Key。密钥不回传明文、不写入浏览器存储，显式 Clear 才清除；当前供应商配置仍只保留在应用运行期间，重启时由启动配置/本地预设初始化。
   - **生成与目录协议分离**：支持将 Anthropic Messages 生成协议与 OpenAI-compatible (`/v1/models`) 目录协议独立组合，适配各类本地反向代理与网关；支持 `manual-only` 纯手动输入模式；
-  - **本地开发测试预设**：设置显式环境变量 `DESKTOP_ENABLE_LOCAL_PROVIDER_PRESET=1` 并在 `.env.local` 提供密钥后，Electron 启动时会自动加载本地 Anthropic 测试供应商；设置页仍可手动重新载入预设（参考 `.env.local.example`），严禁将任何真实密钥硬编码或提交入库。
+  - **本地开发测试预设**：未打包的 Electron 默认使用 OpenAI-compatible 回环网关 `http://127.0.0.1:8317/v1` 和测试 Key `1145141919810`；设置页可手动重新载入预设。默认模型暂用 `gpt-4o`，若网关不提供此模型，请先在设置页获取模型列表并选择可用项。可通过 `.env.local` 中的 `LOCAL_OPENAI_*` 覆盖，或设置 `DESKTOP_ENABLE_LOCAL_PROVIDER_PRESET=0` 关闭；打包版不内置该预设（参考 `.env.local.example`）。
 - **安全与边界规范**：
   - 严格开启 `contextIsolation: true`、`sandbox: true`、`nodeIntegration: false`；
   - 渲染层禁止导入任何 Electron、Node.js 原生模块或模型适配器内核。

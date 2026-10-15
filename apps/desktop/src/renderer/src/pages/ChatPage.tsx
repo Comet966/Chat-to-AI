@@ -8,12 +8,14 @@ import { StatusNotice } from '../components/StatusNotice.js'
 import { usePorts } from '../ports/ports.context.js'
 import type { ChatUiState } from '../ports/chat-ui.port.js'
 import type { ConversationInheritanceSelection } from '../ports/conversation-tree-ui.port.js'
+import type { NamedChatAttachment } from '../../../shared/chat-attachments.js'
 
 export function ChatPage() {
   const { chatUi, providerSettings, conversationTree, preferences, runtimeMode } = usePorts()
   const [chatState, setChatState] = useState<ChatUiState>(chatUi.getState())
   const [providerInfo, setProviderInfo] = useState({ provider: 'openai-compatible', modelId: 'gpt-4o' })
   const [renderMode, setRenderMode] = useState<MessageRenderMode>('markdown')
+  const [inputError, setInputError] = useState('')
   const [inheritanceSelection, setInheritanceSelection] = useState<ConversationInheritanceSelection>({
     mode: 'root-path',
     nodeIds: []
@@ -43,12 +45,18 @@ export function ChatPage() {
     }
   }, [chatUi])
 
-  const handleSend = async (text: string) => {
+  const handleSend = async (text: string, attachments?: NamedChatAttachment[]): Promise<boolean> => {
+    setInputError('')
+    if (providerInfo.provider === 'anthropic' && attachments?.some((item) => item.attachment.type === 'audio')) {
+      setInputError('Anthropic Messages 不支持音频输入，请移除音频或切换供应商。文本和附件已保留。')
+      return false
+    }
     const snapshotRes = await conversationTree.reload()
     const snapshot = snapshotRes.ok ? snapshotRes : await conversationTree.getSnapshot()
-    if (!snapshot.ok) return
+    if (!snapshot.ok) { setInputError('无法读取会话，请稍后重试；文本和附件已保留。'); return false }
     const result = await chatUi.sendMessage({
       content: text,
+      ...(attachments ? { attachments } : {}),
       expectedRevision: snapshot.value.revision,
       currentNodeId: snapshot.value.currentNodeId || null,
       contextSelection: inheritanceSelection
@@ -56,6 +64,7 @@ export function ChatPage() {
     if (!result.ok && result.error.code === 'VERSION_CONFLICT') {
       await conversationTree.reload()
     }
+    return result.ok
   }
 
   const handleInheritanceSelectionChange = useCallback(
@@ -103,6 +112,7 @@ export function ChatPage() {
             <StatusNotice type="danger" message={chatState.error} />
           </div>
         )}
+        {inputError && <div className="chat-notice-wrapper"><StatusNotice type="danger" message={inputError} /></div>}
 
         <MessageList messages={chatState.messages} renderMode={renderMode} />
 

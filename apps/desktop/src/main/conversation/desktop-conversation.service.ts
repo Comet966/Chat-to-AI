@@ -24,6 +24,12 @@ export interface ConversationModelProvider {
   getCurrentModel(): ModelExecutionDescriptor | null
 }
 
+export interface DesktopConversationPersistence {
+  getFormats(): ReadonlyMap<string, TurnFormatMetadata>
+  saveFormat(treeId: string, turnId: string, format: TurnFormatMetadata): Promise<void>
+  saveSelection(treeId: string, nodeId: string): Promise<void>
+}
+
 export class MutableConversationModelProvider implements ConversationModelProvider {
   constructor(private model: ModelExecutionDescriptor | null = null) {}
 
@@ -39,14 +45,18 @@ export class MutableConversationModelProvider implements ConversationModelProvid
 export class DesktopConversationService {
   private readonly activeRequestFormats = new Map<string, TurnFormatMetadata>()
   private readonly turnFormatMetadata = new Map<string, TurnFormatMetadata>()
+  private readonly executions = new Set<Promise<unknown>>()
 
   constructor(
     private readonly treeId: string,
     private readonly treeService: ConversationTreeService,
     private readonly runtime: ConversationRuntimeService,
     private readonly modelProvider: ConversationModelProvider,
-    private readonly preferencesService: GenerationPreferencesService = new GenerationPreferencesService()
-  ) {}
+    private readonly preferencesService: GenerationPreferencesService = new GenerationPreferencesService(),
+    private readonly persistence?: DesktopConversationPersistence
+  ) {
+    for (const [id, metadata] of persistence?.getFormats() ?? []) this.turnFormatMetadata.set(id, metadata)
+  }
 
   public async getSnapshot(): Promise<DesktopConversationResult<ConversationSnapshotDto>> {
     const projection = await this.loadProjection()
@@ -74,6 +84,8 @@ export class DesktopConversationService {
       nodeId: pair.assistantNodeId
     })
     if (!selected.ok) return { ok: false, error: this.mapRuntimeError(selected.error) }
+    try { await this.persistence?.saveSelection(this.treeId, pair.assistantNodeId) }
+    catch { return this.failure('INTERNAL_ERROR', '节点已切换，但当前选择未能保存到磁盘，请检查存储权限') }
     return this.getSnapshot()
   }
 
@@ -164,6 +176,7 @@ export class DesktopConversationService {
       {
         treeId: this.treeId,
         prompt: input.prompt,
+        ...(input.attachments ? { attachments: input.attachments } : {}),
         ...(activeTemplate ? { systemPrompt: activeTemplate } : {}),
         ...(basePair ? { selectedNodeId: basePair.assistantNodeId } : {}),
         contextSelection,
@@ -183,6 +196,7 @@ export class DesktopConversationService {
       }
     )
 
+    this.executions.add(execution)
     void execution.then((result) => {
       if (!acceptanceSettled) {
         acceptanceSettled = true
@@ -192,7 +206,7 @@ export class DesktopConversationService {
             : { ok: false, error: this.mapRuntimeError(result.error) }
         )
       }
-    })
+    }).finally(() => { this.executions.delete(execution) })
 
     return accepted
   }
@@ -202,6 +216,17 @@ export class DesktopConversationService {
     return result.ok
       ? { ok: true, value: undefined }
       : { ok: false, error: this.mapRuntimeError(result.error) }
+  }
+
+  /** Bound shutdown; a non-cooperative provider is recovered from disk on next launch. */
+  public async shutdown(): Promise<void> {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      await Promise.race([
+        (async () => { await this.cancelTurn(); await Promise.allSettled([...this.executions]) })(),
+        new Promise<void>((resolve) => { timer = setTimeout(resolve, 5000) })
+      ])
+    } finally { if (timer) clearTimeout(timer) }
   }
 
   private async loadProjection(): Promise<DesktopConversationResult<ProjectedConversation>> {
@@ -261,22 +286,13 @@ export class DesktopConversationService {
         this.turnFormatMetadata.set(event.assistantNodeId, frozen)
       }
 
-      sink.emit({
-        type: event.type,
-        schemaVersion: 1,
-        treeId: event.treeId,
-        requestId: event.requestId,
-        finishReason: event.finishReason
-      })
-      void this.getSnapshot().then((snapshot) => {
-        if (snapshot.ok) {
-          sink.emit({
-            type: 'conversation.snapshot.changed',
-            schemaVersion: 1,
-            treeId: event.treeId,
-            snapshot: snapshot.value
-          })
-        }
+      const saved = frozen && this.persistence
+        ? this.persistence.saveFormat(this.treeId, event.assistantNodeId, frozen)
+        : Promise.resolve()
+      void saved.catch(() => { console.warn('Conversation saved, but display metadata could not be persisted') }).then(async () => {
+        sink.emit({ type: event.type, schemaVersion: 1, treeId: event.treeId, requestId: event.requestId, finishReason: event.finishReason })
+        const snapshot = await this.getSnapshot()
+        if (snapshot.ok) sink.emit({ type: 'conversation.snapshot.changed', schemaVersion: 1, treeId: event.treeId, snapshot: snapshot.value })
       })
       return
     }
@@ -317,6 +333,8 @@ export class DesktopConversationService {
         return { code: 'VALIDATION_FAILED', message: error.message }
       case 'MODEL_REQUEST_CANCELLED':
         return { code: 'CANCELLED', message: error.message }
+      case 'ATTACHMENT_UNAVAILABLE':
+        return { code: 'ATTACHMENT_UNAVAILABLE', message: error.message }
       case 'MODEL_REQUEST_FAILED':
       case 'MODEL_REQUEST_REJECTED':
       case 'EMPTY_MODEL_RESPONSE':

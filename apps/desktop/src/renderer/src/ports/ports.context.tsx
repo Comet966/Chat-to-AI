@@ -3,8 +3,10 @@ import type { ProviderSettingsPort } from './provider-settings.port.js'
 import type { ChatUiPort } from './chat-ui.port.js'
 import type { ConversationTreeUiPort } from './conversation-tree-ui.port.js'
 import type { GenerationPreferencesPort } from './generation-preferences.port.js'
+import type { ImageGenerationUiPort } from './image-generation-ui.port.js'
 
 export interface AppPorts {
+  imageGeneration?: ImageGenerationUiPort
   providerSettings: ProviderSettingsPort
   chatUi: ChatUiPort
   conversationTree: ConversationTreeUiPort

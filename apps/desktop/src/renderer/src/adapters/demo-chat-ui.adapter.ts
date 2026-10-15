@@ -39,6 +39,7 @@ export class DemoChatUiAdapter implements ChatUiPort {
   }
 
   public async sendMessage(input: SendChatMessageInput): Promise<ChatUiResult<void>> {
+    if (input.attachments?.length) return { ok: false, error: { code: 'UNSUPPORTED_CAPABILITY', message: '附件需要通过真实 Electron 对话服务发送' } }
     const content = input.content
     const trimmed = content.trim()
     if (!trimmed) {

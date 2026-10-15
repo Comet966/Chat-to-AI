@@ -43,6 +43,15 @@ describe('Dagre Tree Layout', () => {
     expect(layout1.nodes.map((n) => n.position)).toEqual(layout2.nodes.map((n) => n.position))
   })
 
+  it('retains known dimensions when a new completed turn replaces the controlled node objects', () => {
+    const { nodes, edges } = toFlowElements(DEFAULT_DEMO_TREE_SNAPSHOT, new Set())
+    const first = dagreTreeLayout(nodes.slice(0, 1), [])
+    const next = dagreTreeLayout(nodes, edges)
+    expect(first.nodes[0]).toMatchObject({ width: 48, height: 48 })
+    expect(next.nodes.every((node) => node.width === 48 && node.height === 48)).toBe(true)
+    expect(next.nodes.map((node) => node.id)).toContain(first.nodes[0]!.id)
+  })
+
   it('selection state changes do not affect node coordinates', () => {
     const { nodes: nodes1, edges: edges1 } = toFlowElements(DEFAULT_DEMO_TREE_SNAPSHOT, new Set())
     const { nodes: nodes2, edges: edges2 } = toFlowElements(

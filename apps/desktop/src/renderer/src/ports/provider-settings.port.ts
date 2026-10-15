@@ -38,7 +38,7 @@ export type ProviderSettingsResult<T> =
 export interface ProviderSettingsPort {
   getSettings(): Promise<ProviderSettingsResult<ProviderSettingsData>>
   saveSettings(data: ProviderSettingsData): Promise<ProviderSettingsResult<void>>
-  clearKey(): Promise<void>
+  clearKey(): Promise<ProviderSettingsResult<void> | void>
   testConnection(): Promise<ProviderSettingsResult<void>>
   listModels(data: ProviderSettingsData): Promise<ProviderSettingsResult<readonly string[]>>
   getDevPreset?(): Promise<ProviderSettingsResult<DesktopDevPresetDto | null>>

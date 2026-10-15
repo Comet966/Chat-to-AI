@@ -4,6 +4,7 @@ import type {
 } from 'chat-conversation-tree'
 import type { ModelExecutionDescriptor } from '../ports/streaming-chat-executor.port.js'
 import type { ConversationRuntimeError } from './conversation-runtime.errors.js'
+import type { NamedChatAttachment } from 'chat-contracts'
 
 export interface ConversationCursor {
   readonly treeId: ConversationTreeId
@@ -36,6 +37,8 @@ export type ConversationContextSelection =
 export interface SendConversationMessageCommand {
   readonly treeId: ConversationTreeId
   readonly prompt: string
+  /** Media is owned by the attachment store and associated with the user node. */
+  readonly attachments?: readonly NamedChatAttachment[]
   readonly systemPrompt?: string
   /** Controls context construction independently from the node used as the new branch parent. */
   readonly contextSelection?: ConversationContextSelection
