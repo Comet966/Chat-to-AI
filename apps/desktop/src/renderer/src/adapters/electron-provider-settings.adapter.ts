@@ -21,8 +21,8 @@ export class ElectronProviderSettingsAdapter implements ProviderSettingsPort {
     return result.ok ? result : { ok: false, error: result.error }
   }
 
-  public async clearKey(): Promise<void> {
-    await this.api.clearKey()
+  public async clearKey(): Promise<ProviderSettingsResult<void>> {
+    return this.api.clearKey()
   }
 
   public async testConnection(): Promise<ProviderSettingsResult<void>> {

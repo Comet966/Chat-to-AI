@@ -4,7 +4,7 @@ import type {
   ConversationTreeId,
   ConversationTreeService
 } from 'chat-conversation-tree'
-import { MAX_SINGLE_MESSAGE_LENGTH } from 'chat-contracts'
+import { MAX_SINGLE_MESSAGE_LENGTH, NamedChatAttachmentsSchema, formatAttachmentPrompt } from 'chat-contracts'
 import { ActiveTurnRegistry } from './active-turn.registry.js'
 import { buildChatContext } from './context-builder.js'
 import {
@@ -31,6 +31,7 @@ import {
   type ConversationRuntimeIdGenerator
 } from './ports/runtime-id-generator.port.js'
 import type { StreamingChatEventSink } from './ports/streaming-chat-executor.port.js'
+import { ConversationAttachmentError, InMemoryConversationAttachmentStore, type ConversationAttachmentStore } from './ports/conversation-attachment-store.port.js'
 
 export class ConversationRuntimeService {
   private readonly activeTurnRegistry = new ActiveTurnRegistry()
@@ -38,7 +39,8 @@ export class ConversationRuntimeService {
   constructor(
     private readonly treeService: ConversationTreeService,
     private readonly cursorStore: ConversationCursorStore = new InMemoryConversationCursorStore(),
-    private readonly idGenerator: ConversationRuntimeIdGenerator = new DefaultConversationRuntimeIdGenerator()
+    private readonly idGenerator: ConversationRuntimeIdGenerator = new DefaultConversationRuntimeIdGenerator(),
+    private readonly attachmentStore: ConversationAttachmentStore = new InMemoryConversationAttachmentStore()
   ) {}
 
   public hasActiveTurn(treeId: ConversationTreeId): boolean {
@@ -49,6 +51,18 @@ export class ConversationRuntimeService {
     command: SendConversationMessageCommand,
     sink: ConversationTurnEventSink
   ): Promise<ConversationRuntimeResult<CompletedConversationTurn>> {
+    // Validate and snapshot media before any await or tree mutation. Never put it in a node.
+    const parsedAttachments = command.attachments === undefined
+      ? undefined : NamedChatAttachmentsSchema.safeParse(command.attachments)
+    if (parsedAttachments && !parsedAttachments.success) {
+      return { ok: false, error: createRuntimeError('INVALID_PROMPT', 'Invalid attachments or attachment limits exceeded') }
+    }
+    const attachments = parsedAttachments?.success ? parsedAttachments.data : []
+    if (typeof command.prompt !== 'string') {
+      return { ok: false, error: createRuntimeError('INVALID_PROMPT', 'Prompt must be a string') }
+    }
+    // The tree stores names; the attachment store owns media and node associations.
+    command = { ...command, prompt: formatAttachmentPrompt(command.prompt, attachments), attachments: undefined }
     if (!command.prompt || typeof command.prompt !== 'string' || command.prompt.trim() === '') {
       return {
         ok: false,
@@ -201,6 +215,7 @@ export class ConversationRuntimeService {
       pendingUserNodeId = userNodeId
       pendingBaseNodeId = baseNodeId
       pendingTreeVersion = expectedVersionAfterUser
+      if (attachments.length) await this.attachmentStore.saveAttachments(command.treeId, userNodeId, attachments)
 
       const contextNodesRes = await this.resolveContextNodes(
         command,
@@ -233,6 +248,7 @@ export class ConversationRuntimeService {
       }
 
       const assistantNodeId = this.idGenerator.nextAssistantNodeId()
+      const mediaByNode = await this.attachmentStore.loadForNodes(command.treeId, contextNodesRes.value.map((node) => node.id))
 
       sink.emit({
         type: 'conversation.turn.started',
@@ -426,7 +442,12 @@ export class ConversationRuntimeService {
             requestId,
             conversationId: command.treeId,
             assistantMessageId: assistantNodeId,
-            messages: contextRes.value
+            messages: contextRes.value.map((message, index) => {
+              const offset = contextRes.value.length - contextNodesRes.value.length
+              const node = contextNodesRes.value[index - offset]
+              const media = node ? mediaByNode.get(node.id) : undefined
+              return media?.length ? { ...message, attachments: media.map((item) => item.attachment) } : message
+            })
           },
           executorSink
         )
@@ -464,10 +485,11 @@ export class ConversationRuntimeService {
           return rollbackRes
         }
       }
-      const msg = err instanceof Error ? err.message : String(err)
       return {
         ok: false,
-        error: createRuntimeError('INTERNAL_ERROR', `Unexpected conversation runtime error: ${msg}`)
+        error: err instanceof ConversationAttachmentError
+          ? createRuntimeError(err.code, err.message)
+          : createRuntimeError('INTERNAL_ERROR', 'Conversation storage or execution failed')
       }
     } finally {
       if (!streamStarted) {
@@ -594,7 +616,7 @@ export class ConversationRuntimeService {
         }
       }
       this.cursorStore.delete(treeId)
-      return { ok: true, value: undefined }
+      return this.removePendingAttachments(treeId, userNodeId)
     }
 
     const deleteNodeRes = await this.treeService.deleteNode({
@@ -615,7 +637,16 @@ export class ConversationRuntimeService {
       }
     }
     this.cursorStore.set(treeId, baseNodeId)
-    return { ok: true, value: undefined }
+    return this.removePendingAttachments(treeId, userNodeId)
+  }
+
+  private async removePendingAttachments(treeId: string, nodeId: string): Promise<ConversationRuntimeResult<void>> {
+    try {
+      await this.attachmentStore.removeAttachments(treeId, nodeId)
+      return { ok: true, value: undefined }
+    } catch {
+      return { ok: false, error: createRuntimeError('INTERNAL_ERROR', 'Incomplete turn removed, but attachment references could not be cleaned up') }
+    }
   }
 
   public async selectNode(

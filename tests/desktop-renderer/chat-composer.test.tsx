@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ChatComposer } from '../../apps/desktop/src/renderer/src/features/chat/ChatComposer.js'
 
@@ -59,7 +59,7 @@ describe('ChatComposer - Editing, IME & Draft preservation', () => {
     expect(screen.getByRole('status').textContent).toContain('AI 正在回复中，草稿已保留')
   })
 
-  it('does not send message on Enter during IME composition (Chinese / Japanese / Korean input)', () => {
+  it('does not send message on Enter during IME composition (Chinese / Japanese / Korean input)', async () => {
     const onSend = vi.fn().mockResolvedValue(undefined)
     const onCancel = vi.fn().mockResolvedValue(undefined)
 
@@ -97,6 +97,7 @@ describe('ChatComposer - Editing, IME & Draft preservation', () => {
     })
 
     expect(onSend).toHaveBeenCalledWith('你好')
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Send' }).hasAttribute('disabled')).toBe(true))
     expect(textarea.value).toBe('')
   })
 

@@ -11,6 +11,19 @@ const baseInput = {
 }
 
 describe('ProviderRuntimeService', () => {
+  it.each(['https://api.openai.com/v1', ' https://API.OPENAI.COM:443/v1/ '])('preserves the saved key when editing a read-back configuration at %s', async (baseUrl) => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: [{ id: 'updated-model' }] }), { status: 200 }))
+    const service = new ProviderRuntimeService({ modelProvider: new MutableConversationModelProvider(), hasActiveTurn: () => false, fetchImpl, enableDevPreset: false })
+    expect(service.saveSettings(baseInput).ok).toBe(true)
+    const settings = service.getSettings()
+    if (!settings.ok) throw new Error('Missing settings')
+    expect(settings.value).toMatchObject({ apiKey: '', hasApiKey: true })
+    expect(service.saveSettings({ ...settings.value, baseUrl, modelId: 'updated-model' }).ok).toBe(true)
+    expect(service.getRuntimeConfig()).toMatchObject({ apiKey: baseInput.apiKey, modelId: 'updated-model', baseUrl: baseInput.baseUrl })
+    expect((await service.listModels({ ...settings.value, baseUrl })).ok).toBe(true)
+    expect(fetchImpl).toHaveBeenCalledWith('https://api.openai.com/v1/models', expect.objectContaining({ headers: { authorization: `Bearer ${baseInput.apiKey}` } }))
+  })
+
   it('keeps API keys write-only while installing a usable model executor', () => {
     const modelProvider = new MutableConversationModelProvider()
     const service = new ProviderRuntimeService({

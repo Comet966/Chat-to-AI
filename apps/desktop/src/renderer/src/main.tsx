@@ -5,6 +5,8 @@ import './styles/tokens.css'
 import './styles/global.css'
 import './styles/layout.css'
 import './styles/conversation-tree.css'
+import './styles/image-generation.css'
+import './styles/chat-attachments.css'
 
 const rootElement = document.getElementById('root')
 if (rootElement) {

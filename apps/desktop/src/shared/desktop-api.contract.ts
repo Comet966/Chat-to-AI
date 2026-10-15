@@ -22,6 +22,9 @@ import type {
 
 export const DESKTOP_IPC_CHANNELS = {
   APP_GET_INFO: 'desktop:app:get-info',
+  IMAGE_GENERATE: 'desktop:image:generate',
+  IMAGE_CANCEL: 'desktop:image:cancel',
+  IMAGE_SAVE: 'desktop:image:save',
   CONVERSATION_GET_SNAPSHOT: 'desktop:conversation:snapshot:get',
   CONVERSATION_SET_CURRENT: 'desktop:conversation:current:set',
   CONVERSATION_START_TURN: 'desktop:conversation:turn:start',
@@ -66,6 +69,7 @@ export interface AppInfo {
 }
 
 export interface DesktopApi {
+  imageGeneration: DesktopImageGenerationApi
   app: {
     getInfo(): Promise<DesktopResult<AppInfo>>
   }
@@ -100,3 +104,4 @@ declare global {
     desktopApi?: DesktopApi
   }
 }
+import type { DesktopImageGenerationApi } from './image-generation.contract.js'

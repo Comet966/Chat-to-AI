@@ -1,4 +1,5 @@
 import type { ProviderKind, ProviderSettingsData } from '../../ports/provider-settings.port.js'
+import { normalizedProviderEndpoint } from '../../utils/provider-endpoint.js'
 import type {
   ProviderSettingsAction,
   ProviderSettingsFormState
@@ -18,6 +19,12 @@ export const PROVIDER_DEFAULTS: Record<ProviderKind, { baseUrl: string; modelId:
     baseUrl: 'https://generativelanguage.googleapis.com',
     modelId: 'gemini-1.5-pro'
   }
+}
+
+export function hasConfiguredKey(state: ProviderSettingsFormState): boolean {
+  const endpoint = normalizedProviderEndpoint(state.data.baseUrl)
+  return !!state.keyScope && state.keyScope.provider === state.data.provider && endpoint !== null &&
+    endpoint === normalizedProviderEndpoint(state.keyScope.baseUrl)
 }
 
 export function providerSettingsReducer(
@@ -49,6 +56,7 @@ export function providerSettingsReducer(
         data: {
           ...state.data,
           provider: action.provider,
+          apiKey: '',
           baseUrl: defaults.baseUrl,
           modelId: defaults.modelId,
           anthropicVersion: defaults.anthropicVersion,
@@ -61,13 +69,13 @@ export function providerSettingsReducer(
     }
 
     case 'applyPreset': {
+      const data = { ...state.data, ...action.preset, apiKey: '' }
       return {
         ...state,
         status: 'editing',
-        data: {
-          ...state.data,
-          ...action.preset
-        },
+        data,
+        keyScope: action.preset.hasApiKey ? { provider: data.provider, baseUrl: data.baseUrl } : state.keyScope,
+        showApiKey: false,
         errors: {},
         noticeMessage: 'Loaded local development preset. Click "Save Configuration" to apply.'
       }
@@ -89,6 +97,8 @@ export function providerSettingsReducer(
           apiKey: '',
           hasApiKey: false
         },
+        keyScope: null,
+        showApiKey: false,
         noticeMessage: 'API Key cleared from memory.'
       }
     }
@@ -111,6 +121,23 @@ export function providerSettingsReducer(
       }
     }
 
+    case 'configurationSaved': {
+      return {
+        ...state,
+        data: {
+          ...state.data,
+          // Drop the submitted secret, but preserve any newer replacement draft.
+          apiKey: state.data.apiKey === action.data.apiKey ? '' : state.data.apiKey,
+          hasApiKey: true
+        },
+        keyScope: { provider: action.data.provider, baseUrl: action.data.baseUrl },
+        showApiKey: false,
+        status: 'saved-in-memory',
+        errors: {},
+        noticeMessage: 'Settings saved for this application session. API Key 已配置，切换页面不会清除。'
+      }
+    }
+
     case 'testConnectionResult': {
       return {
         ...state,
@@ -122,6 +149,7 @@ export function providerSettingsReducer(
     case 'resetForm': {
       return {
         data: action.data,
+        keyScope: action.data.hasApiKey ? { provider: action.data.provider, baseUrl: action.data.baseUrl } : null,
         status: 'pristine',
         errors: {},
         noticeMessage: null,

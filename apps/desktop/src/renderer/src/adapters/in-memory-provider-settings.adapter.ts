@@ -4,6 +4,7 @@ import type {
   ProviderSettingsPort,
   ProviderSettingsResult
 } from '../ports/provider-settings.port.js'
+import { normalizedProviderEndpoint } from '../utils/provider-endpoint.js'
 
 export const DEFAULT_PROVIDER_SETTINGS: ProviderSettingsData = {
   provider: 'openai-compatible',
@@ -26,7 +27,7 @@ export class InMemoryProviderSettingsAdapter implements ProviderSettingsPort {
   public async getSettings(): Promise<ProviderSettingsResult<ProviderSettingsData>> {
     return {
       ok: true,
-      value: { ...this.settings }
+      value: { ...this.settings, apiKey: '', hasApiKey: !!this.settings.apiKey }
     }
   }
 
@@ -45,7 +46,9 @@ export class InMemoryProviderSettingsAdapter implements ProviderSettingsPort {
       }
     }
 
-    if (!data.apiKey || data.apiKey.trim() === '') {
+    const apiKey = data.apiKey.trim() || (data.provider === this.settings.provider &&
+      normalizedProviderEndpoint(data.baseUrl) === normalizedProviderEndpoint(this.settings.baseUrl) ? this.settings.apiKey : '')
+    if (!apiKey) {
       return {
         ok: false,
         error: { code: 'VALIDATION_FAILED', message: 'API Key is required', field: 'apiKey' }
@@ -66,12 +69,13 @@ export class InMemoryProviderSettingsAdapter implements ProviderSettingsPort {
       }
     }
 
-    this.settings = { ...data }
+    this.settings = { ...data, apiKey, hasApiKey: true }
     return { ok: true, value: undefined }
   }
 
   public async clearKey(): Promise<void> {
     this.settings.apiKey = ''
+    this.settings.hasApiKey = false
   }
 
   public async testConnection(): Promise<ProviderSettingsResult<void>> {

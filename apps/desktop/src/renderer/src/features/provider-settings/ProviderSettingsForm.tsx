@@ -8,7 +8,7 @@ import type {
   ProviderSettingsData,
   ProviderSettingsPort
 } from '../../ports/provider-settings.port.js'
-import { providerSettingsReducer } from './provider-settings.reducer.js'
+import { hasConfiguredKey, providerSettingsReducer } from './provider-settings.reducer.js'
 import type { ProviderSettingsFormState } from './provider-settings.types.js'
 
 export interface ProviderSettingsFormProps {
@@ -22,6 +22,7 @@ export function ProviderSettingsForm({
 }: ProviderSettingsFormProps) {
   const [state, dispatch] = useReducer(providerSettingsReducer, {
     data: initialData,
+    keyScope: initialData.hasApiKey ? { provider: initialData.provider, baseUrl: initialData.baseUrl } : null,
     status: 'pristine',
     errors: {},
     noticeMessage: null,
@@ -30,6 +31,7 @@ export function ProviderSettingsForm({
   const [modelOptions, setModelOptions] = useState<readonly string[]>([])
   const [loadingModels, setLoadingModels] = useState(false)
   const [devPreset, setDevPreset] = useState<DesktopDevPresetDto | null>(null)
+  const keyConfigured = hasConfiguredKey(state)
 
   useEffect(() => {
     let isMounted = true
@@ -64,7 +66,7 @@ export function ProviderSettingsForm({
     if (!state.data.baseUrl || !/^https?:\/\/.+/.test(state.data.baseUrl)) {
       errors.baseUrl = 'Please enter a valid HTTP/HTTPS URL'
     }
-    if (!state.data.hasApiKey && (!state.data.apiKey || state.data.apiKey.trim() === '')) {
+    if (!keyConfigured && (!state.data.apiKey || state.data.apiKey.trim() === '')) {
       errors.apiKey = 'API Key is required'
     }
     if (!state.data.modelId || state.data.modelId.trim() === '') {
@@ -83,15 +85,17 @@ export function ProviderSettingsForm({
       return
     }
 
-    const saveRes = await port.saveSettings({
+    const submitted = {
       ...state.data,
+      hasApiKey: keyConfigured,
       maxOutputTokens: Number(state.data.maxOutputTokens)
-    })
+    }
+    const saveRes = await port.saveSettings(submitted)
 
     if (saveRes.ok) {
       dispatch({
-        type: 'saveSuccess',
-        message: 'Settings saved for this application session.'
+        type: 'configurationSaved',
+        data: submitted
       })
     } else {
       const field = saveRes.error.field as keyof ProviderSettingsData | undefined
@@ -140,7 +144,11 @@ export function ProviderSettingsForm({
   }
 
   const handleClearKey = async () => {
-    await port.clearKey()
+    const result = await port.clearKey()
+    if (result && !result.ok) {
+      dispatch({ type: 'testConnectionResult', message: result.error.message })
+      return
+    }
     dispatch({ type: 'clearApiKey' })
   }
 
@@ -238,8 +246,8 @@ export function ProviderSettingsForm({
           label="API Key"
           htmlFor="apiKey"
           error={state.errors.apiKey}
-          hint={state.data.hasApiKey
-            ? 'A key is configured in Main Process. Leave blank to keep it.'
+          hint={keyConfigured
+            ? 'API Key 已配置，保存在主进程中。切换页面不会清除；留空继续使用，输入新 Key 可替换。'
             : 'Stored only in Main Process memory; never returned to the page.'}
         >
           <div className="api-key-input-row">
@@ -249,7 +257,8 @@ export function ProviderSettingsForm({
               value={state.data.apiKey}
               onChange={(e) => handleFieldChange('apiKey', e.target.value)}
               className="field-input api-key-input"
-              placeholder="Enter API Key..."
+              placeholder={keyConfigured ? '••••••••（已配置，留空保留）' : 'Enter API Key...'}
+              autoComplete="off"
               aria-invalid={Boolean(state.errors.apiKey)}
               aria-describedby={state.errors.apiKey ? 'apiKey-error' : undefined}
             />
@@ -257,13 +266,14 @@ export function ProviderSettingsForm({
               variant="secondary"
               onClick={() => dispatch({ type: 'toggleShowApiKey' })}
               aria-label={state.showApiKey ? 'Hide API key' : 'Show API key'}
+              title="只切换当前输入的可见性，不读取已保存的 Key"
             >
               {state.showApiKey ? 'Hide' : 'Show'}
             </Button>
             <Button
               variant="danger"
               onClick={handleClearKey}
-              disabled={!state.data.apiKey && !state.data.hasApiKey}
+              disabled={!state.data.apiKey && !state.keyScope}
               aria-label="Clear API key"
             >
               Clear

@@ -3,6 +3,7 @@ import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from './app-shell/AppShell.js'
 import { ChatPage } from './pages/ChatPage.js'
 import { ProviderSettingsPage } from './pages/ProviderSettingsPage.js'
+import { ImageGenerationPage } from './pages/ImageGenerationPage.js'
 
 export function AppRoutes() {
   return (
@@ -11,6 +12,7 @@ export function AppRoutes() {
         <Route path="/" element={<AppShell />}>
           <Route index element={<Navigate to="/chat" replace />} />
           <Route path="chat" element={<ChatPage />} />
+          <Route path="images" element={<ImageGenerationPage />} />
           <Route path="settings/providers" element={<ProviderSettingsPage />} />
           <Route path="*" element={<Navigate to="/chat" replace />} />
         </Route>

@@ -69,6 +69,11 @@ export class ProviderRuntimeService {
     }
   }
 
+  /** Main-only credentials snapshot. Never exposed by the provider IPC bridge. */
+  public getRuntimeConfig(): ProviderConfig | null {
+    return this.config ? { ...this.config } : null
+  }
+
   public saveSettings(input: DesktopProviderSettingsInput): DesktopProviderResult<void> {
     if (this.options.hasActiveTurn()) {
       return this.failure('TURN_IN_PROGRESS', 'Cannot change provider while a response is streaming')
@@ -197,21 +202,23 @@ export class ProviderRuntimeService {
   private resolveConfig(
     input: DesktopProviderSettingsInput
   ): DesktopProviderResult<ProviderConfig> {
+    const endpoint = validateSanitizedUrl(input.baseUrl)
+    if (!endpoint.success) return this.failure('VALIDATION_FAILED', endpoint.error, 'baseUrl')
     const localPreset = this.enableDevPreset
       ? loadLocalDevProviderConfig({ ...process.env, DESKTOP_ENABLE_LOCAL_PROVIDER_PRESET: '1' })?.providerConfig
       : null
     const presetKey = localPreset &&
       input.provider === localPreset.provider &&
-      input.baseUrl.trim() === localPreset.baseUrl
+      endpoint.url === localPreset.baseUrl
       ? localPreset.apiKey
       : ''
     const currentKey = this.config &&
       input.provider === this.config.provider &&
-      input.baseUrl.trim() === this.config.baseUrl
+      endpoint.url === this.config.baseUrl
       ? this.config.apiKey
       : ''
     const apiKey = input.apiKey.trim() || currentKey || presetKey
-    const validated = validateProviderConfig({ ...input, apiKey })
+    const validated = validateProviderConfig({ ...input, baseUrl: endpoint.url, apiKey })
     if (!validated.success) {
       return this.failure('VALIDATION_FAILED', validated.error, validated.field)
     }

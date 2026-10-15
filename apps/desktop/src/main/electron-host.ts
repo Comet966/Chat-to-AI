@@ -1,9 +1,10 @@
-import { app, BrowserWindow, session } from 'electron'
+import { app, BrowserWindow, dialog, session } from 'electron'
+import { writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { ChatKernel } from 'chat-core'
 import { ConversationRuntimeService, InMemoryConversationCursorStore } from 'chat-conversation-runtime'
-import { ConversationTreeService, InMemoryConversationTreeRepository } from 'chat-conversation-tree'
+import { ConversationTreeService } from 'chat-conversation-tree'
 import { createModelAdapter } from 'chat-model-adapters'
 import {
   loadAppConfig,
@@ -28,6 +29,9 @@ import { SenderPolicy } from './security/sender-policy.js'
 
 import { GenerationPreferencesService } from './preferences/generation-preferences.service.js'
 import { registerPreferencesTransport } from './preferences/preferences.transport.js'
+import { DesktopImageGenerationService } from './image-generation/desktop-image-generation.service.js'
+import { ImageGenerationTransport } from './image-generation/image-generation.transport.js'
+import { DesktopConversationStorage } from './storage/desktop-conversation.storage.js'
 
 export class ElectronHost {
   private mainWindow: BrowserWindow | null = null
@@ -38,8 +42,12 @@ export class ElectronHost {
   private unregisterConversationTransport: (() => void) | null = null
   private unregisterProviderTransport: (() => void) | null = null
   private unregisterPreferencesTransport: (() => void) | null = null
+  private unregisterImageTransport: (() => void) | null = null
+  private imageService: DesktopImageGenerationService | null = null
   private conversationModelProvider: MutableConversationModelProvider | null = null
   private navigationPolicy: NavigationPolicy | null = null
+  private conversationStorage: DesktopConversationStorage | null = null
+  private conversationService: DesktopConversationService | null = null
 
   /**
    * Initializes the desktop shell without requiring AI provider credentials.
@@ -55,10 +63,16 @@ export class ElectronHost {
     const senderPolicy = new SenderPolicy({ allowedOrigins })
     this.unregisterShellTransport = registerDesktopShellTransport({ senderPolicy })
 
-    const treeService = new ConversationTreeService(new InMemoryConversationTreeRepository())
+    this.conversationStorage = await DesktopConversationStorage.open(join(app.getPath('userData'), 'conversation-data'))
+    const treeService = new ConversationTreeService(this.conversationStorage)
+    const cursorStore = new InMemoryConversationCursorStore()
+    const selectedNode = this.conversationStorage.getSelection('desktop-conversation-default')
+    if (selectedNode) cursorStore.set('desktop-conversation-default', selectedNode)
     const runtime = new ConversationRuntimeService(
       treeService,
-      new InMemoryConversationCursorStore()
+      cursorStore,
+      undefined,
+      this.conversationStorage
     )
     this.conversationModelProvider = new MutableConversationModelProvider()
     let initialProviderConfig: AppConfig['providerConfig'] | undefined
@@ -74,7 +88,7 @@ export class ElectronHost {
     const providerService = new ProviderRuntimeService({
       modelProvider: this.conversationModelProvider,
       initialConfig: initialProviderConfig,
-      hasActiveTurn: () => runtime.hasActiveTurn('desktop-conversation-default'),
+      hasActiveTurn: () => runtime.hasActiveTurn('desktop-conversation-default') || !!this.imageService?.hasActiveRequest(),
       isPackaged: app.isPackaged
     })
     const preferencesService = new GenerationPreferencesService()
@@ -83,14 +97,33 @@ export class ElectronHost {
       treeService,
       runtime,
       this.conversationModelProvider,
-      preferencesService
+      preferencesService,
+      this.conversationStorage
     )
+    this.conversationService = conversationService
     this.unregisterConversationTransport = registerConversationTransport({
       service: conversationService,
       senderPolicy
     })
     this.unregisterProviderTransport = registerProviderTransport(providerService, senderPolicy)
     this.unregisterPreferencesTransport = registerPreferencesTransport(preferencesService, senderPolicy)
+    this.imageService = new DesktopImageGenerationService({
+      getProviderConfig: () => providerService.getRuntimeConfig(),
+      saveImage: async (image, imageIndex) => {
+        const extension = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' }[image.mediaType]
+        const options = {
+          title: '保存生成的图片', defaultPath: `generated-image-${imageIndex + 1}.${extension}`,
+          filters: [{ name: '图片', extensions: [extension] }]
+        }
+        const result = this.mainWindow && !this.mainWindow.isDestroyed()
+          ? await dialog.showSaveDialog(this.mainWindow, options)
+          : await dialog.showSaveDialog(options)
+        if (result.canceled || !result.filePath) return false
+        await writeFile(result.filePath, Buffer.from(image.data, 'base64'))
+        return true
+      }
+    })
+    this.unregisterImageTransport = new ImageGenerationTransport(this.imageService, senderPolicy).register()
 
     this.setupSecurityHeaders(parsedRendererUrl)
   }
@@ -146,6 +179,7 @@ export class ElectronHost {
     })
 
     window.on('closed', () => {
+      this.imageService?.dispose()
       this.mainWindow = null
     })
 
@@ -181,6 +215,10 @@ export class ElectronHost {
   }
 
   public async shutdown(): Promise<void> {
+    this.unregisterImageTransport?.()
+    this.unregisterImageTransport = null
+    this.imageService?.dispose()
+    await this.conversationService?.shutdown()
     const activeRequestId = this.kernel?.getState().activeRequestId
     if (activeRequestId) {
       await this.kernel?.cancel({ requestId: activeRequestId })
@@ -215,6 +253,8 @@ export class ElectronHost {
       this.unregisterPreferencesTransport()
       this.unregisterPreferencesTransport = null
     }
+
+    await this.conversationStorage?.flush()
 
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       this.mainWindow.destroy()

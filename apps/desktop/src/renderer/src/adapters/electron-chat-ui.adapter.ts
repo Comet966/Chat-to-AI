@@ -1,4 +1,5 @@
 import type { DesktopApi } from '../../../shared/desktop-api.contract.js'
+import { formatAttachmentPrompt, NamedChatAttachmentsSchema } from '../../../shared/chat-attachments.js'
 import type { ConversationSnapshotDto, DesktopConversationEvent } from '../../../shared/conversation.contract.js'
 import type {
   ChatUiMessage,
@@ -53,7 +54,10 @@ export class ElectronChatUiAdapter implements ChatUiPort {
 
   public async sendMessage(input: SendChatMessageInput): Promise<ChatUiResult<void>> {
     const content = input.content.trim()
-    if (!content) return { ok: false, error: { code: 'EMPTY_INPUT', message: 'Message cannot be empty' } }
+    if (!content && !input.attachments?.length) return { ok: false, error: { code: 'EMPTY_INPUT', message: 'Message cannot be empty' } }
+    const parsed = input.attachments === undefined ? undefined : NamedChatAttachmentsSchema.safeParse(input.attachments)
+    if (parsed && !parsed.success) return { ok: false, error: { code: 'VALIDATION_FAILED', message: '附件格式或大小不符合要求' } }
+    const attachments = parsed?.success ? parsed.data : undefined
     if (this.state.status === 'streaming') {
       return { ok: false, error: { code: 'TURN_IN_PROGRESS', message: 'A response is already streaming' } }
     }
@@ -67,7 +71,7 @@ export class ElectronChatUiAdapter implements ChatUiPort {
       error: null,
       messages: [
         ...this.state.messages,
-        { id: `pending-user-${localId}`, role: 'user', content, timestamp: new Date().toISOString() },
+        { id: `pending-user-${localId}`, role: 'user', content: formatAttachmentPrompt(content, attachments ?? []), timestamp: new Date().toISOString() },
         {
           id: this.pendingAssistantId,
           role: 'assistant',
@@ -77,17 +81,20 @@ export class ElectronChatUiAdapter implements ChatUiPort {
       ]
     })
 
-    const result = await this.api.startTurn({
+    let result: Awaited<ReturnType<DesktopApi['conversation']['startTurn']>>
+    try { result = await this.api.startTurn({
       prompt: content,
+      ...(attachments ? { attachments } : {}),
       expectedRevision: input.expectedRevision,
       currentTurnId: input.currentNodeId,
       contextSelection: {
         mode: input.contextSelection.mode,
         turnIds: [...input.contextSelection.nodeIds]
       }
-    })
+    }) } catch { result = { ok: false, error: { code: 'INTERNAL_ERROR', message: '桌面对话服务调用失败，请重试' } } }
     if (!result.ok) {
       this.removePendingAssistant()
+      this.setState({ messages: this.state.messages.filter((message) => message.id !== `pending-user-${localId}`) })
       this.activeRequestId = null
       this.receivedDeltas = []
       this.setState({ status: 'failed', error: result.error.message })

@@ -44,3 +44,22 @@ export const ChatAttachmentSchema = z.discriminatedUnion('type', [
 ])
 
 export type ChatAttachment = z.infer<typeof ChatAttachmentSchema>
+
+/** Display name only, never a local path or a filesystem capability. */
+export const AttachmentNameSchema = z.string().min(1).max(255)
+  .refine((value) => !!value.trim() && !/[\x00-\x1f\x7f/\\]/.test(value), 'Expected a filename, not a local path')
+export const NamedChatAttachmentSchema = z.object({
+  name: AttachmentNameSchema,
+  attachment: ChatAttachmentSchema
+}).strict()
+export const NamedChatAttachmentsSchema = z.array(NamedChatAttachmentSchema).min(1).max(MAX_ATTACHMENTS_PER_MESSAGE)
+  .refine((items) => items.reduce((bytes, item) => bytes + (item.attachment.source.type === 'base64'
+    ? base64ByteLength(item.attachment.source.data) : 0), 0) <= MAX_TOTAL_ATTACHMENT_BYTES, 'Total attachment bytes exceed limit')
+export type NamedChatAttachment = z.infer<typeof NamedChatAttachmentSchema>
+
+/** Plain-text names remain readable; binary storage is handled by callers. */
+export function formatAttachmentPrompt(prompt: string, items: readonly Pick<NamedChatAttachment, 'name'>[]): string {
+  if (!items.length) return prompt
+  const text = prompt.trim() || '请分析本轮附件。'
+  return `${text}\n\n[附件：${items.map((item) => JSON.stringify(item.name)).join('、')}]`
+}

@@ -1,3 +1,5 @@
+import type { NamedChatAttachment } from 'chat-contracts'
+
 export interface ConversationTurnProviderInfoDto {
   provider: string
   modelId: string
@@ -30,6 +32,7 @@ export type ConversationContextSelectionDto =
 
 export interface StartConversationTurnInput {
   prompt: string
+  attachments?: NamedChatAttachment[]
   expectedRevision: number
   currentTurnId: string | null
   contextSelection: ConversationContextSelectionDto
@@ -45,6 +48,7 @@ export type DesktopConversationErrorCode =
   | 'VALIDATION_FAILED'
   | 'UNAUTHORIZED_SENDER'
   | 'MODEL_REQUEST_FAILED'
+  | 'ATTACHMENT_UNAVAILABLE'
   | 'CANCELLED'
   | 'INTERNAL_ERROR'
 

@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom'
 import { AppIcon } from '../components/icons/AppIcon.js'
 import { ChatIcon } from '../components/icons/ChatIcon.js'
 import { SettingsIcon } from '../components/icons/SettingsIcon.js'
+import { ImageIcon } from '../components/icons/ImageIcon.js'
 
 export function AppNavigation() {
   return (
@@ -18,6 +19,10 @@ export function AppNavigation() {
           title="对话"
         >
           <ChatIcon size={22} />
+        </NavLink>
+        <NavLink to="/images" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`.trim()}
+          aria-label="生图" title="生图">
+          <ImageIcon size={22} />
         </NavLink>
         <NavLink
           to="/settings/providers"

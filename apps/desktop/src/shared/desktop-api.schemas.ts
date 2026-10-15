@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { NamedChatAttachmentsSchema, formatAttachmentPrompt } from 'chat-contracts'
 
 export const AppGetInfoInputSchema = z.union([z.record(z.unknown()), z.undefined(), z.null()]).optional()
 
@@ -23,11 +24,15 @@ export const SetCurrentConversationTurnInputSchema = z.object({
   expectedRevision: z.number().int().nonnegative()
 }).strict()
 export const StartConversationTurnInputSchema = z.object({
-  prompt: z.string().min(1).max(32000),
+  prompt: z.string().max(32000),
+  attachments: NamedChatAttachmentsSchema.optional(),
   expectedRevision: z.number().int().nonnegative(),
   currentTurnId: IdSchema.nullable(),
   contextSelection: ContextSelectionSchema
-}).strict()
+}).strict().refine((input) => {
+  const storedPrompt = formatAttachmentPrompt(input.prompt, input.attachments ?? [])
+  return !!storedPrompt.trim() && storedPrompt.length <= 32000
+}, 'Prompt and attachment names exceed limits or are empty')
 
 export const DesktopConversationErrorSchema = z.object({
   code: z.enum([
@@ -40,6 +45,7 @@ export const DesktopConversationErrorSchema = z.object({
     'VALIDATION_FAILED',
     'UNAUTHORIZED_SENDER',
     'MODEL_REQUEST_FAILED',
+    'ATTACHMENT_UNAVAILABLE',
     'CANCELLED',
     'INTERNAL_ERROR'
   ]),

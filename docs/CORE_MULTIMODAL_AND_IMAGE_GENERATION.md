@@ -3,7 +3,7 @@
 ## 本轮边界
 
 仅扩展 `chat-contracts`、`chat-core`、`chat-model-adapters` 和相关测试。
-不接入 Electron IPC、GUI、TUI、CLI 参数或会话树持久化；界面目前仍只接受文本。
+该内核扩展阶段本身不接入 Electron IPC、GUI、TUI、CLI 参数或会话树持久化。后续 GUI 集成已提供独立生图模块和多模态聊天输入，分别见 [GUI 生图说明](./GUI_IMAGE_GENERATION.md) 与 [GUI 多模态输入说明](./GUI_MULTIMODAL_INPUT.md)。
 原有 `content: string` 和文本 `AsyncIterable` / `ChatEvent` 调用保持兼容。
 
 ## 多模态输入

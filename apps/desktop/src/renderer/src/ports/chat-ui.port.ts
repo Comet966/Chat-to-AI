@@ -30,6 +30,7 @@ export type ChatUiResult<T> =
 
 export interface SendChatMessageInput {
   content: string
+  attachments?: NamedChatAttachment[]
   expectedRevision: number
   currentNodeId: string | null
   contextSelection: {
@@ -48,3 +49,4 @@ export interface ChatUiPort {
   /** Stops external subscriptions without invalidating local UI subscribers. */
   dispose?: () => void
 }
+import type { NamedChatAttachment } from '../../../shared/chat-attachments.js'

@@ -1,4 +1,6 @@
 import { ipcRenderer } from 'electron'
+import { DesktopImageGenerationResultSchema, DesktopImageCancelResultSchema, DesktopImageSaveResultSchema } from '../shared/image-generation.schemas.js'
+import type { DesktopGenerateImageInput } from '../shared/image-generation.contract.js'
 import {
   DESKTOP_IPC_CHANNELS,
   type AppInfo,
@@ -70,6 +72,20 @@ export function createDesktopBridge(customIpc?: IpcInvokeTarget): DesktopApi {
   const ipc = customIpc ?? ipcRenderer
 
   return Object.freeze({
+    imageGeneration: Object.freeze({
+      generate: async (input: DesktopGenerateImageInput) => {
+        const parsed = DesktopImageGenerationResultSchema.safeParse(await ipc.invoke(DESKTOP_IPC_CHANNELS.IMAGE_GENERATE, input))
+        return parsed.success ? structuredClone(parsed.data) : { ok: false as const, error: { code: 'INTERNAL_ERROR' as const, message: 'Desktop image service returned an invalid response' } }
+      },
+      cancel: async (input: { requestId: string }) => {
+        const parsed = DesktopImageCancelResultSchema.safeParse(await ipc.invoke(DESKTOP_IPC_CHANNELS.IMAGE_CANCEL, input))
+        return parsed.success ? structuredClone(parsed.data) : { ok: false as const, error: { code: 'INTERNAL_ERROR' as const, message: 'Desktop image service returned an invalid response' } }
+      },
+      save: async (input: { requestId: string; imageIndex: number }) => {
+        const parsed = DesktopImageSaveResultSchema.safeParse(await ipc.invoke(DESKTOP_IPC_CHANNELS.IMAGE_SAVE, input))
+        return parsed.success ? structuredClone(parsed.data) : { ok: false as const, error: { code: 'INTERNAL_ERROR' as const, message: 'Desktop image service returned an invalid response' } }
+      }
+    }),
     app: Object.freeze({
       getInfo: async (): Promise<DesktopResult<AppInfo>> => {
         const result = await ipc.invoke(DESKTOP_IPC_CHANNELS.APP_GET_INFO, {})
